@@ -1,0 +1,25 @@
+name: zapier
+description: "Read-only CLI for your Zapier account: list zaps, check run history, diagnose failures. Never modifies, deletes, or toggles anything."
+version: "0.1.0"
+base_url: "https://zapier.com"
+health_check_path: "/api/v4/session"
+
+auth:
+  type: api_key
+  header: "Cookie"
+  format: "{token}"
+  env_vars:
+    - ZAPIER_SESSION_COOKIE
+
+resources:
+  session:
+    description: "Session/account status"
+    endpoints:
+      check:
+        method: GET
+        path: "/api/v4/session"
+        description: "Check whether the saved session cookie is still valid"
+        response:
+          type: object
+
+types: {}

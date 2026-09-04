@@ -1,0 +1,7 @@
+zapier-pp-cli
+build/
+*.db
+
+# local scratch
+progress.jsonl
+*.log

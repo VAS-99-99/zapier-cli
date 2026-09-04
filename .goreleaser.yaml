@@ -1,0 +1,51 @@
+version: 2
+project_name: zapier-pp-cli
+changelog:
+  disable: true
+builds:
+  - id: zapier-pp-cli
+    main: ./cmd/zapier-pp-cli
+    binary: zapier-pp-cli
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X zapier-pp-cli/internal/cli.version={{ .Version }}
+    targets:
+      - darwin_amd64
+      - darwin_arm64
+      - linux_amd64
+      - linux_arm64
+      - windows_amd64
+      - windows_arm64
+  - id: zapier-pp-mcp
+    main: ./cmd/zapier-pp-mcp
+    binary: zapier-pp-mcp
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    targets:
+      - darwin_amd64
+      - darwin_arm64
+      - linux_amd64
+      - linux_arm64
+      - windows_amd64
+      - windows_arm64
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+checksum:
+  name_template: checksums.txt
+brews:
+  - name: zapier-pp-cli
+    repository:
+      owner: vas-99-99
+      name: homebrew-tap
+    homepage: "https://github.com/vas-99-99/zapier-pp-cli"
+    description: "Read-only CLI for your Zapier account: list zaps, check run history, diagnose failures."
+    install: |
+      bin.install "zapier-pp-cli"
+      bin.install "zapier-pp-mcp"
