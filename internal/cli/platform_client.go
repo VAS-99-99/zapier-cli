@@ -12,9 +12,9 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/client"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/platform"
 	"github.com/spf13/cobra"
-	"zapier-pp-cli/internal/client"
-	"zapier-pp-cli/internal/platform"
 )
 
 // platformSourceRegistration is intentionally package-local: a preserved

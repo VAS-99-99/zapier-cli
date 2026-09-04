@@ -10,10 +10,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/client"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/config"
 	"github.com/spf13/cobra"
-	"zapier-pp-cli/internal/client"
-	"zapier-pp-cli/internal/cliutil"
-	"zapier-pp-cli/internal/config"
 )
 
 // Hand-coded auth flows can report credentials that are intentionally not
@@ -217,7 +217,7 @@ func newDoctorCmd(flags *rootFlags) *cobra.Command {
 					configured, authSource := doctorAuthConfiguredState(cfg)
 					if !configured {
 						report["auth"] = "not configured"
-						report["auth_hint"] = "Set your API key with: export ZAPIER_SESSION_COOKIE=\"your-token-here\""
+						report["auth_hint"] = "Run 'zapier-pp-cli auth setup' for safe session-cookie instructions."
 					} else {
 						authConfigured = true
 						report["auth"] = "configured"
@@ -316,9 +316,9 @@ func newDoctorCmd(flags *rootFlags) *cobra.Command {
 					} else {
 						suggestion := suggestReadCommand(cmd.Root())
 						if suggestion != "" {
-							report["credentials"] = fmt.Sprintf("present, not verified. Run `%s %s` to confirm the token works end-to-end.", "zapier-pp-cli", suggestion)
+							report["credentials"] = fmt.Sprintf("present, not verified. Run `%s %s` to confirm the session cookie works end-to-end.", "zapier-pp-cli", suggestion)
 						} else {
-							report["credentials"] = "present, not verified. Run any read command to confirm the token works end-to-end."
+							report["credentials"] = "present, not verified. Run any read command to confirm the session cookie works end-to-end."
 						}
 					}
 				}

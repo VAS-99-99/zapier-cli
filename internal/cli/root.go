@@ -14,14 +14,14 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/client"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/config"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/platform"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"zapier-pp-cli/internal/client"
-	"zapier-pp-cli/internal/cliutil"
-	"zapier-pp-cli/internal/config"
-	"zapier-pp-cli/internal/learn"
-	"zapier-pp-cli/internal/platform"
-	"zapier-pp-cli/internal/store"
 )
 
 type rootFlags struct {
@@ -284,8 +284,14 @@ func isCobraUsageError(err error) bool {
 func newRootCmd(flags *rootFlags) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "zapier-pp-cli",
-		Short: "Manage zapier resources via the zapier API",
-		Long: `Manage zapier resources via the zapier API.
+		Short: "Inspect Zapier resources through a remote read-only API surface",
+		Long: `Inspect Zapier resources through a remote read-only API surface.
+
+Highlights (not in the official API docs):
+  • zaps list   List Zaps and filter by a case-insensitive title substring without changing them.
+  • runs list   List historical Zap runs with optional Zap and status filters.
+  • runs get   Open one historical run and return every step's status, input, output, and error.
+  • diagnose   Resolve a Zap and report the exact failed step and error from recent failed runs.
 
 Add --agent to any command for JSON output + non-interactive mode.
 Run 'zapier-pp-cli doctor' to verify auth and connectivity.`,
@@ -323,7 +329,7 @@ Run 'zapier-pp-cli doctor' to verify auth and connectivity.`,
 			flag.Hidden = true
 		}
 	}
-	rootCmd.PersistentFlags().StringVar(&flags.deliverSpec, "deliver", "", "Route output to a sink: stdout (default), file:<path>, webhook:<url>")
+	rootCmd.PersistentFlags().StringVar(&flags.deliverSpec, "deliver", "", "Route output locally: stdout (default) or file:<path>")
 	rootCmd.PersistentFlags().Float64Var(&flags.rateLimit, "rate-limit", client.RateLimitAuto, "Max requests per second (0 to disable; default auto — pace to server rate-limit headers)")
 	if f := rootCmd.PersistentFlags().Lookup("rate-limit"); f != nil {
 		f.DefValue = "auto"

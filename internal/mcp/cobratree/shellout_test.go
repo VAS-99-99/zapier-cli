@@ -16,8 +16,8 @@ import (
 
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/mcp/bound"
 	"github.com/spf13/cobra"
-	"zapier-pp-cli/internal/mcp/bound"
 )
 
 // TestSplitShellArgs pins the whitespace + quote splitting used by

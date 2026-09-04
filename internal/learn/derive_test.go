@@ -17,8 +17,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"zapier-pp-cli/internal/learn"
-	"zapier-pp-cli/internal/store"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 )
 
 // deriveDBPath allocates a fresh candidate-store path per test.

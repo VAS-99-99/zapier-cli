@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"zapier-pp-cli/internal/learn"
-	"zapier-pp-cli/internal/store"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 )
 
 // TestNewLearnConfig_BuildsConfig pins that the emitted init shim

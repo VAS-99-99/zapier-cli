@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"zapier-pp-cli/internal/client"
-	"zapier-pp-cli/internal/store"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/client"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 )
 
 const networkFallbackReason = "api_unreachable"

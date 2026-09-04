@@ -13,8 +13,8 @@ import (
 	"strings"
 
 	"github.com/mark3labs/mcp-go/server"
-	"zapier-pp-cli/internal/cli"
-	mcptools "zapier-pp-cli/internal/mcp"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cli"
+	mcptools "github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/mcp"
 )
 
 // Transport selection order: --transport flag, then PP_MCP_TRANSPORT env,

@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"zapier-pp-cli/internal/store"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 )
 
 // Teach-time playbook synthesis. When an agent teaches a resource

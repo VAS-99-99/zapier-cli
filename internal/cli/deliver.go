@@ -4,13 +4,10 @@
 package cli
 
 import (
-	"bytes"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 // DeliverSink describes where command output should be routed when
@@ -24,7 +21,6 @@ type DeliverSink struct {
 //
 //	stdout          -> default, no redirection
 //	file:<path>     -> write output atomically to <path>
-//	webhook:<url>   -> POST output body to <url>
 //
 // Returns an error for unknown schemes with a message naming the
 // supported set, so agents see a structured refusal rather than a
@@ -35,7 +31,7 @@ func ParseDeliverSink(spec string) (DeliverSink, error) {
 	}
 	idx := strings.Index(spec, ":")
 	if idx == -1 {
-		return DeliverSink{}, fmt.Errorf("unknown --deliver sink %q: expected scheme:target (supported: stdout, file:<path>, webhook:<url>)", spec)
+		return DeliverSink{}, fmt.Errorf("unknown --deliver sink %q: expected scheme:target (supported: stdout, file:<path>)", spec)
 	}
 	scheme := spec[:idx]
 	target := spec[idx+1:]
@@ -44,12 +40,8 @@ func ParseDeliverSink(spec string) (DeliverSink, error) {
 		if target == "" {
 			return DeliverSink{}, fmt.Errorf("--deliver file:<path> requires a path")
 		}
-	case "webhook":
-		if !strings.HasPrefix(target, "http://") && !strings.HasPrefix(target, "https://") {
-			return DeliverSink{}, fmt.Errorf("--deliver webhook:<url> requires an http:// or https:// URL, got %q", target)
-		}
 	default:
-		return DeliverSink{}, fmt.Errorf("unknown --deliver scheme %q (supported: stdout, file, webhook)", scheme)
+		return DeliverSink{}, fmt.Errorf("unknown --deliver scheme %q (supported: stdout, file)", scheme)
 	}
 	return DeliverSink{Scheme: scheme, Target: target}, nil
 }
@@ -57,14 +49,14 @@ func ParseDeliverSink(spec string) (DeliverSink, error) {
 // Deliver routes a captured output buffer to the configured sink. stdout
 // is a no-op because the buffer has already been streamed to stdout via
 // the MultiWriter set up in root.go.
-func Deliver(sink DeliverSink, body []byte, compact bool) error {
+func Deliver(sink DeliverSink, body []byte, _ bool) error {
 	switch sink.Scheme {
 	case "", "stdout":
 		return nil
 	case "file":
 		return deliverFile(sink.Target, body)
 	case "webhook":
-		return deliverWebhook(sink.Target, body, compact)
+		return fmt.Errorf("remote webhook delivery is disabled: this product permits no remote writes")
 	default:
 		return fmt.Errorf("unsupported deliver sink %q", sink.Scheme)
 	}
@@ -85,34 +77,6 @@ func deliverFile(path string, body []byte) error {
 	}
 	if err := os.Rename(tmp, path); err != nil {
 		return fmt.Errorf("replacing deliver file: %w", err)
-	}
-	return nil
-}
-
-func deliverWebhook(url string, body []byte, compact bool) error {
-	contentType := "application/json"
-	if compact {
-		contentType = "application/x-ndjson"
-	}
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("building webhook request: %w", err)
-	}
-	req.Header.Set("Content-Type", contentType)
-	if ua := os.Getenv("ZAPIER_USER_AGENT"); ua != "" {
-		req.Header.Set("User-Agent", ua)
-	} else {
-		req.Header.Set("User-Agent", "zapier-pp-cli/deliver")
-	}
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("posting to webhook: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("webhook returned %s", resp.Status)
 	}
 	return nil
 }

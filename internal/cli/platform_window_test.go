@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/platform"
 	"github.com/spf13/cobra"
-	"zapier-pp-cli/internal/platform"
 )
 
 func TestPlatformCommandWindowPreservesCalendarInputs(t *testing.T) {

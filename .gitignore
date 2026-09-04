@@ -1,7 +1,8 @@
-zapier-pp-cli
+/zapier-pp-cli
 build/
 *.db
 
 # local scratch
 progress.jsonl
+dogfood-results.json
 *.log

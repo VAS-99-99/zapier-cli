@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"zapier-pp-cli/internal/learn/entities"
-	"zapier-pp-cli/internal/learn/lookups"
-	"zapier-pp-cli/internal/learn/patterns"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn/entities"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn/lookups"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn/patterns"
 )
 
 // Default thresholds. Keep in sync with the documented contract in

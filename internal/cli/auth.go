@@ -6,11 +6,31 @@ package cli
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"runtime"
 
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/config"
 	"github.com/spf13/cobra"
-	"zapier-pp-cli/internal/cliutil"
-	"zapier-pp-cli/internal/config"
 )
+
+const zapierLoginURL = "https://zapier.com/app/login"
+
+var launchBrowser = openBrowser
+
+func openBrowser(url string) error {
+	var name string
+	var args []string
+	switch runtime.GOOS {
+	case "darwin":
+		name, args = "open", []string{url}
+	case "windows":
+		name, args = "rundll32", []string{"url.dll,FileProtocolHandler", url}
+	default:
+		name, args = "xdg-open", []string{url}
+	}
+	return exec.Command(name, args...).Start() // #nosec G204 -- fixed opener and trusted constant URL.
+}
 
 func newAuthCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
@@ -35,19 +55,32 @@ func newAuthSetupCmd(_ *rootFlags) *cobra.Command {
 	var launch bool
 	cmd := &cobra.Command{
 		Use:     "setup",
-		Short:   "Print steps for obtaining a credential (use --launch to open the URL)",
+		Short:   "Print browser-session cookie setup steps (use --launch to open Zapier login)",
 		Example: "  zapier-pp-cli auth setup\n  zapier-pp-cli auth setup --launch",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			w := cmd.OutOrStdout()
-			fmt.Fprintln(w, "No setup URL is configured for this CLI; check the API's docs.")
-			fmt.Fprintln(w, "")
-			fmt.Fprintln(w, "Then set:")
-			fmt.Fprintln(w, "  export ZAPIER_SESSION_COOKIE=\"your-token-here\"")
-			fmt.Fprintln(w, "  echo \"$TOKEN\" | zapier-pp-cli auth set-token")
+			fmt.Fprintf(w, "1. Sign in to Zapier at %s.\n", zapierLoginURL)
+			fmt.Fprintln(w, "2. In your browser's developer tools, copy the complete Cookie request-header value from an authenticated Zapier request.")
+			fmt.Fprintln(w, "   Treat it as a password: do not paste it into chat, logs, or commands that print it.")
+			fmt.Fprintln(w, "3. Save it to the local credentials store using the commands for your shell:")
+			fmt.Fprintln(w, "   macOS/Linux (hidden prompt):")
+			fmt.Fprintln(w, "     printf 'Paste Zapier session cookie: ' >&2; IFS= read -rs ZAPIER_SESSION_COOKIE; printf '\\n' >&2")
+			fmt.Fprintf(w, "     printf '%%s' \"$ZAPIER_SESSION_COOKIE\" | zapier-pp-cli auth set-token\n")
+			fmt.Fprintln(w, "     unset ZAPIER_SESSION_COOKIE")
+			fmt.Fprintln(w, "   Windows PowerShell (temporary access-restricted file):")
+			fmt.Fprintln(w, "     Get-Content -Raw .\\private-cookie-file | zapier-pp-cli auth set-token")
+			fmt.Fprintln(w, "     Remove-Item .\\private-cookie-file")
 			if !launch {
 				return nil
 			}
-			fmt.Fprintln(cmd.ErrOrStderr(), "no setup URL configured; cannot launch")
+			if cliutil.IsAnyHarness() {
+				fmt.Fprintln(cmd.ErrOrStderr(), "verification harness: browser launch skipped")
+				return nil
+			}
+			if err := launchBrowser(zapierLoginURL); err != nil {
+				return fmt.Errorf("opening Zapier login: %w", err)
+			}
+			fmt.Fprintln(cmd.ErrOrStderr(), "opened Zapier login in your default browser")
 			return nil
 		},
 	}
@@ -106,9 +139,7 @@ func newAuthStatusCmd(flags *rootFlags) *cobra.Command {
 			if !authed {
 				fmt.Fprintln(w, red("Not authenticated"))
 				fmt.Fprintln(w, "")
-				fmt.Fprintln(w, "Set your token:")
-				fmt.Fprintln(w, "  export ZAPIER_SESSION_COOKIE=\"your-token-here\"")
-				fmt.Fprintf(w, "  echo \"$TOKEN\" | zapier-pp-cli auth set-token\n")
+				fmt.Fprintln(w, "Run 'zapier-pp-cli auth setup' for safe session-cookie instructions.")
 				return authErr(fmt.Errorf("no credentials configured"))
 			}
 
@@ -123,10 +154,10 @@ func newAuthStatusCmd(flags *rootFlags) *cobra.Command {
 func newAuthSetTokenCmd(flags *rootFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set-token",
-		Short: "Save an API token to the credentials file",
-		Long: "Save an API token to the credentials file.\n\n" +
-			"The token is read from stdin so it never appears in process arguments or shell history.",
-		Example: "  echo \"$TOKEN\" | zapier-pp-cli auth set-token\n  zapier-pp-cli auth set-token < token-file",
+		Short: "Save a Zapier session cookie to the credentials file",
+		Long: "Save a Zapier browser-session cookie to the credentials file.\n\n" +
+			"The cookie is read from stdin so it never appears in process arguments or shell history.",
+		Example: "  printf '%s' \"$ZAPIER_SESSION_COOKIE\" | zapier-pp-cli auth set-token\n  zapier-pp-cli auth set-token < cookie-file",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			token, err := readSecretFromStdin(cmd.InOrStdin())
@@ -146,8 +177,8 @@ func newAuthSetTokenCmd(flags *rootFlags) *cobra.Command {
 			// log line): a masked-tail variant could leak token bytes through
 			// scripted dogfood that captures stderr.
 			cfg.AuthHeaderVal = ""
-			// api_key auth: AuthHeader() reads the env-var-derived field, not
-			// AccessToken. Writing the token to AccessToken via SaveTokens
+			// Cookie auth: AuthHeader() reads the env-var-derived field, not
+			// AccessToken. Writing the cookie to AccessToken via SaveTokens
 			// would persist the bytes but leave doctor reporting "not
 			// configured" — the slot the header builder consults stays empty.
 			if err := cfg.SaveCredential(token); err != nil {
@@ -166,7 +197,7 @@ func newAuthSetTokenCmd(flags *rootFlags) *cobra.Command {
 				}
 				return printJSONFiltered(cmd.OutOrStdout(), out, flags)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Token saved to %s\n", savePath)
+			fmt.Fprintf(cmd.OutOrStdout(), "Session cookie saved to %s\n", savePath)
 			return nil
 		},
 	}

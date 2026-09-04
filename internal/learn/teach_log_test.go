@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"zapier-pp-cli/internal/cliutil"
-	"zapier-pp-cli/internal/cliutil/testenv"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil/testenv"
 )
 
 func withTempHomeForLog(t *testing.T) string {

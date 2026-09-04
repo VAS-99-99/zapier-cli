@@ -17,15 +17,15 @@ import (
 
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"zapier-pp-cli/internal/cli"
-	"zapier-pp-cli/internal/client"
-	"zapier-pp-cli/internal/cliutil"
-	"zapier-pp-cli/internal/config"
-	"zapier-pp-cli/internal/learn"
-	"zapier-pp-cli/internal/mcp/bound"
-	"zapier-pp-cli/internal/mcp/cobratree"
-	"zapier-pp-cli/internal/platform"
-	"zapier-pp-cli/internal/store"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cli"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/client"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/config"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/mcp/bound"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/mcp/cobratree"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/platform"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 )
 
 const (
@@ -304,17 +304,17 @@ func makeAPIHandler(method, pathTemplate string, readOnly bool, binaryResponse b
 			case strings.Contains(msg, "HTTP 400") && cliutil.LooksLikeAuthError(msg):
 				return mcpToolError("authentication error: " + cliutil.SanitizeErrorBody(msg) +
 					"\nhint: the API rejected the request — this usually means auth is missing or invalid." +
-					"\n      Set your API key with: export ZAPIER_SESSION_COOKIE=\"your-token-here\"" +
+					"\n      Run 'zapier-pp-cli auth setup' for safe session-cookie instructions." +
 					"\n      Run 'zapier-pp-cli doctor' to check auth status."), nil
 			case strings.Contains(msg, "HTTP 401"):
 				return mcpToolError("authentication failed: " + cliutil.SanitizeErrorBody(msg) +
-					"\nhint: check your API key." +
-					"\n      Set your API key with: export ZAPIER_SESSION_COOKIE=\"your-token-here\"" +
+					"\nhint: check your session cookie." +
+					"\n      Run 'zapier-pp-cli auth setup' for safe session-cookie instructions." +
 					"\n      Run 'zapier-pp-cli doctor' to check auth status."), nil
 			case strings.Contains(msg, "HTTP 403"):
 				return mcpToolError("permission denied: " + cliutil.SanitizeErrorBody(msg) +
 					"\nhint: your credentials are valid but lack access to this resource. Check that they have the required permissions and match the API's expected auth scheme." +
-					"\n      Set your API key with: export ZAPIER_SESSION_COOKIE=\"your-token-here\"" +
+					"\n      Run 'zapier-pp-cli auth setup' for safe session-cookie instructions." +
 					"\n      Run 'zapier-pp-cli doctor' to check auth status."), nil
 			case strings.Contains(msg, "HTTP 404"):
 				if method == "DELETE" {
@@ -756,7 +756,7 @@ func handleContext(_ context.Context, _ mcplib.CallToolRequest) (*mcplib.CallToo
 					"kind":        "per_call",
 					"required":    true,
 					"sensitive":   true,
-					"description": "Set to your API credential.",
+					"description": "Set to the complete Cookie request-header value from an authenticated Zapier browser session.",
 				},
 			},
 		},

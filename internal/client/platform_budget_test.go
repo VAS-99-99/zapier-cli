@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"zapier-pp-cli/internal/platform"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/platform"
 )
 
 func TestPlatformBudgetLookupContract(t *testing.T) {

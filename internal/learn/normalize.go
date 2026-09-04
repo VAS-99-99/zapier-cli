@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"zapier-pp-cli/internal/learn/entities"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn/entities"
 )
 
 // NormalizedQuery is the entity-aware normalized representation of a

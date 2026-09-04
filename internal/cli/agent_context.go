@@ -8,10 +8,10 @@ import (
 	"os"
 	"sort"
 
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"zapier-pp-cli/internal/cliutil"
-	"zapier-pp-cli/internal/learn"
 )
 
 // agentContextSchemaVersion is bumped on any breaking change to the JSON
@@ -124,7 +124,7 @@ func buildAgentContext(rootCmd *cobra.Command) agentContext {
 			Kind:        "per_call",
 			Required:    true,
 			Sensitive:   true,
-			Description: "Set to your API credential.",
+			Description: "Set to the complete Cookie request-header value from an authenticated Zapier browser session.",
 		},
 	}
 	authMode := "api_key"

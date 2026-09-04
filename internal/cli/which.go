@@ -26,7 +26,12 @@ type whichEntry struct {
 // its hero features. Endpoint-level commands are discoverable via
 // `--help`; `which` exists to resolve a natural-language capability
 // query to one of the commands the skill says matter most.
-var whichIndex = []whichEntry{}
+var whichIndex = []whichEntry{
+	{Command: "zaps list", Description: "List Zaps and filter by a case-insensitive title substring without changing them.", Group: "Read-only Zap inspection", WhyItMatters: "Agents can safely resolve a Zap before inspecting its historical runs."},
+	{Command: "runs list", Description: "List historical Zap runs with optional Zap and status filters.", Group: "Read-only run inspection", WhyItMatters: "Agents can find the relevant failed execution using a bounded live read."},
+	{Command: "runs get", Description: "Open one historical run and return every step's status, input, output, and error.", Group: "Read-only run inspection", WhyItMatters: "Agents can inspect exactly what happened inside a known run without replaying it."},
+	{Command: "diagnose", Description: "Resolve a Zap and report the exact failed step and error from recent failed runs.", Group: "Read-only diagnosis", WhyItMatters: "Agents can answer where and why a Zap failed while preserving the product's strict read-only boundary."},
+}
 
 // whichMatch pairs an index entry with its ranking score for a query.
 // Higher score means stronger match. The ranker is naive (exact token

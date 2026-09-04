@@ -18,9 +18,9 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"zapier-pp-cli/internal/cli/playbooks"
-	"zapier-pp-cli/internal/learn"
-	"zapier-pp-cli/internal/store"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cli/playbooks"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 )
 
 // twoPlaybookFS returns an fstest.MapFS with two minimal playbooks +

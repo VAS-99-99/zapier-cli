@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"zapier-pp-cli/internal/learn/entities"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn/entities"
 )
 
 // EntityMatch classifies how well a stored learning's resource-side

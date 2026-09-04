@@ -14,7 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"zapier-pp-cli/internal/store"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 )
 
 // learnStatsEnvelope locks the JSON contract for `learnings stats`.

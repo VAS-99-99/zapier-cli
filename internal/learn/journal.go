@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"zapier-pp-cli/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
 )
 
 // The invocation journal records one entry per CLI invocation in dated

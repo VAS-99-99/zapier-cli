@@ -25,5 +25,27 @@
   "auth_type": "api_key",
   "auth_env_vars": [
     "ZAPIER_SESSION_COOKIE"
+  ],
+  "novel_features": [
+    {
+      "name": "List and find Zaps",
+      "command": "zaps list",
+      "description": "List Zaps and filter by a case-insensitive title substring without changing them."
+    },
+    {
+      "name": "Inspect run history",
+      "command": "runs list",
+      "description": "List historical Zap runs with optional Zap and status filters."
+    },
+    {
+      "name": "Open run step details",
+      "command": "runs get",
+      "description": "Open one historical run and return every step's status, input, output, and error."
+    },
+    {
+      "name": "Diagnose failed runs",
+      "command": "diagnose",
+      "description": "Resolve a Zap and report the exact failed step and error from recent failed runs."
+    }
   ]
 }

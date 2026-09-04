@@ -16,8 +16,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"zapier-pp-cli/internal/config"
-	"zapier-pp-cli/internal/platform"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/config"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/platform"
 )
 
 func TestTruncateBody(t *testing.T) {

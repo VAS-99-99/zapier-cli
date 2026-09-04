@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"zapier-pp-cli/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
 )
 
 // teachLogStateDirName is the per-user state directory name.

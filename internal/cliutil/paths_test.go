@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"testing"
 
-	"zapier-pp-cli/internal/cliutil/testenv"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil/testenv"
 )
 
 func resetPathEnv(t *testing.T) string {

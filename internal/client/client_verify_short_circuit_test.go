@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"zapier-pp-cli/internal/config"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/config"
 )
 
 // recordingRoundTripper counts how many times its RoundTrip method is

@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -67,12 +68,29 @@ func newRunsCmd(flags *rootFlags) *cobra.Command {
 	return cmd
 }
 
+func validateReportingGraphQL(req graphqlRequest) error {
+	switch req.OperationName {
+	case "ZapRuns":
+		if req.Query == zapRunsQuery {
+			return nil
+		}
+	case "RunDetail":
+		if req.Query == runDetailQuery {
+			return nil
+		}
+	}
+	return usageErr(fmt.Errorf("reporting GraphQL operation and query are not an allowed read-only pair"))
+}
+
 func callReportingGraphQL(cmd *cobra.Command, flags *rootFlags, req graphqlRequest) (json.RawMessage, error) {
+	if err := validateReportingGraphQL(req); err != nil {
+		return nil, err
+	}
 	client, err := flags.newClient()
 	if err != nil {
 		return nil, err
 	}
-	raw, status, err := client.Post(cmd.Context(), "/api/reporting/graphql", req)
+	raw, status, err := client.PostQueryWithParams(cmd.Context(), "/api/reporting/graphql", nil, req)
 	if err != nil {
 		return nil, apiErr(fmt.Errorf("calling zapier: %w", err))
 	}
@@ -95,21 +113,35 @@ func currentAccountID(cmd *cobra.Command, flags *rootFlags) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	raw, err := client.Get(cmd.Context(), "/api/v4/accounts", map[string]string{"limit": "1"})
+	raw, err := client.GetNoCache(cmd.Context(), "/api/v4/session", nil)
 	if err != nil {
 		return "", apiErr(fmt.Errorf("resolving account: %w", err))
 	}
-	var page struct {
-		Results []struct {
-			ID int64 `json:"id"`
-		} `json:"results"`
+	var session struct {
+		CurrentAccountID json.RawMessage `json:"current_account_id"`
 	}
-	if err := json.Unmarshal(raw, &page); err != nil || len(page.Results) == 0 {
+	if err := json.Unmarshal(raw, &session); err != nil {
 		return "", apiErr(fmt.Errorf("could not determine account id from session"))
 	}
-	return fmt.Sprintf("%d", page.Results[0].ID), nil
+	var id uint64
+	if err := json.Unmarshal(session.CurrentAccountID, &id); err != nil {
+		var text string
+		if json.Unmarshal(session.CurrentAccountID, &text) != nil {
+			return "", apiErr(fmt.Errorf("could not determine account id from session"))
+		}
+		parsed, parseErr := strconv.ParseUint(strings.TrimSpace(text), 10, 64)
+		if parseErr != nil {
+			return "", apiErr(fmt.Errorf("could not determine account id from session"))
+		}
+		id = parsed
+	}
+	if id == 0 {
+		return "", apiErr(fmt.Errorf("could not determine account id from session"))
+	}
+	return strconv.FormatUint(id, 10), nil
 }
 
+// pp:data-source live
 func newRunsListCmd(flags *rootFlags) *cobra.Command {
 	var zapID string
 	var status string
@@ -121,10 +153,16 @@ func newRunsListCmd(flags *rootFlags) *cobra.Command {
 		Example: strings.Trim(`
   zapier-pp-cli runs list
   zapier-pp-cli runs list --status error
-  zapier-pp-cli runs list --zap 378928393 --status error
+  zapier-pp-cli runs list --zap 101 --status error
 `, "\n"),
 		Annotations: map[string]string{"mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateDataSourceStrategy(flags, "live"); err != nil {
+				return usageErr(err)
+			}
+			if limit < 1 {
+				return usageErr(fmt.Errorf("--limit must be at least 1"))
+			}
 			if dryRunOK(flags) {
 				return writeDryRun(cmd.OutOrStdout(), flags, "list runs")
 			}
@@ -177,7 +215,7 @@ func newRunsListCmd(flags *rootFlags) *cobra.Command {
 				})
 			}
 			if !wantsHumanTable(cmd.OutOrStdout(), flags) {
-				return printJSONFiltered(cmd.OutOrStdout(), results, flags)
+				return printLiveValue(cmd.OutOrStdout(), results, flags)
 			}
 			for _, r := range results {
 				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\n", r.ID, r.Status, r.StartTime, r.ZapTitle)
@@ -185,24 +223,28 @@ func newRunsListCmd(flags *rootFlags) *cobra.Command {
 			return nil
 		},
 	}
-	c.Flags().StringVar(&zapID, "zap", "", "zap id to filter runs to (see `zaps list`)")
+	c.Flags().StringVar(&zapID, "zap", "", "zap ID to filter runs to; see zaps list")
 	c.Flags().StringVar(&status, "status", "", "filter by run status, e.g. success, error, held")
 	c.Flags().IntVar(&limit, "limit", 25, "maximum runs to return")
 	return c
 }
 
+// pp:data-source live
 func newRunsGetCmd(flags *rootFlags) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "get <run-id>",
 		Short: "Show full detail for one run, including every step's data and error",
 		Long:  "Shows a single run's steps with input/output data and the failing step's error message, if any. Read-only: never replays the run.",
 		Example: strings.Trim(`
-  zapier-pp-cli runs get 011591bb-32b7-a705-e472-1b154c6d5bf4
+  zapier-pp-cli runs get <run-id>
 `, "\n"),
 		Annotations: map[string]string{"mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()
+			}
+			if err := validateDataSourceStrategy(flags, "live"); err != nil {
+				return usageErr(err)
 			}
 			if dryRunOK(flags) {
 				return writeDryRun(cmd.OutOrStdout(), flags, "get run detail")
@@ -242,7 +284,7 @@ func newRunsGetCmd(flags *rootFlags) *cobra.Command {
 				ZapID: z.Zap.ID, ZapTitle: z.Zap.Title, Steps: z.Steps,
 			}
 			if !wantsHumanTable(cmd.OutOrStdout(), flags) {
-				return printJSONFiltered(cmd.OutOrStdout(), detail, flags)
+				return printLiveValue(cmd.OutOrStdout(), detail, flags)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Run %s (%s) — %s\n", detail.ID, detail.Status, detail.ZapTitle)
 			for i, s := range detail.Steps {

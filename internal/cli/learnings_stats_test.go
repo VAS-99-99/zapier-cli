@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"zapier-pp-cli/internal/store"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 )
 
 // runLearningsStatsJSON executes `learnings stats --json` against the

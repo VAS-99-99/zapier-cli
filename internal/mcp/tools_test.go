@@ -12,10 +12,10 @@ import (
 
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"zapier-pp-cli/internal/cliutil"
-	"zapier-pp-cli/internal/cliutil/testenv"
-	"zapier-pp-cli/internal/mcp/bound"
-	"zapier-pp-cli/internal/store"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil/testenv"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/mcp/bound"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 )
 
 func TestMCPPathResolutionMatchesCLIResolverWithHomeEnv(t *testing.T) {

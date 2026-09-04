@@ -4,23 +4,20 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
 	"github.com/spf13/cobra"
-	"zapier-pp-cli/internal/cliutil"
 )
 
-// FeedbackEntry is one line in the local feedback ledger. Every run of
-// the feedback command appends one entry; upstream POST is a separate,
-// optional step.
+// FeedbackEntry is one line in the local feedback ledger. This product never
+// sends feedback remotely because its remote boundary is strictly read-only.
 type FeedbackEntry struct {
 	Text      string    `json:"text"`
 	CLI       string    `json:"cli"`
@@ -42,20 +39,10 @@ func feedbackFilePath() (string, error) {
 	return filepath.Join(dir, "feedback.jsonl"), nil
 }
 
-// FeedbackEndpointConfigured reports whether an upstream feedback URL
-// is available. Surfaced via agent-context so introspecting agents know
-// whether their feedback will ship upstream.
+// FeedbackEndpointConfigured is retained for agent-context compatibility.
+// Remote feedback is permanently disabled for this read-only product.
 func FeedbackEndpointConfigured() bool {
-	return os.Getenv("ZAPIER_FEEDBACK_ENDPOINT") != ""
-}
-
-func feedbackEndpoint() string {
-	return os.Getenv("ZAPIER_FEEDBACK_ENDPOINT")
-}
-
-func feedbackAutoSend() bool {
-	v := strings.ToLower(strings.TrimSpace(os.Getenv("ZAPIER_FEEDBACK_AUTO_SEND")))
-	return v == "1" || v == "true" || v == "yes"
+	return false
 }
 
 func appendFeedback(entry FeedbackEntry) error {
@@ -71,46 +58,18 @@ func appendFeedback(entry FeedbackEntry) error {
 	return json.NewEncoder(f).Encode(entry)
 }
 
-func postFeedback(url string, entry FeedbackEntry) error {
-	body, err := json.Marshal(entry)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("building feedback request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "zapier-pp-cli/feedback")
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("posting feedback: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("feedback endpoint returned %s", resp.Status)
-	}
-	return nil
-}
-
 func newFeedbackCmd(flags *rootFlags) *cobra.Command {
 	var useStdin bool
-	var send bool
 	cmd := &cobra.Command{
 		Use:   "feedback [text]",
-		Short: "Record feedback about this CLI (local by default; upstream opt-in)",
-		Long: `Feedback is captured locally first in the CLI data directory's feedback.jsonl.
-When ` + "`ZAPIER_FEEDBACK_ENDPOINT`" + ` is set and either --send is
-passed or ` + "`ZAPIER_FEEDBACK_AUTO_SEND=true`" + `, the entry is
-POSTed as JSON after the local write.
-
-Write what surprised you or tripped you up, not a bug report. The
-loop is: agent notices friction -> one invocation -> captured -> the
-maintainer sees it.`,
+		Short: "Record feedback locally about this CLI",
+		Long: `Feedback is captured only in the CLI data directory's feedback.jsonl.
+It is never sent to a remote endpoint. Write what surprised you or tripped you
+up so a maintainer with access to this machine can review it.`,
 		Example: `  zapier-pp-cli feedback "the --since flag is inclusive but docs say exclusive"
   zapier-pp-cli feedback --stdin < notes.txt
   zapier-pp-cli feedback list --limit 10`,
+		Annotations: map[string]string{"mcp:local-write": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var text string
 			if useStdin {
@@ -143,23 +102,11 @@ maintainer sees it.`,
 				return err
 			}
 
-			upstreamResult := map[string]any{"sent": false}
-			if endpoint := feedbackEndpoint(); endpoint != "" && (send || feedbackAutoSend()) {
-				if err := postFeedback(endpoint, entry); err != nil {
-					fmt.Fprintf(cmd.ErrOrStderr(), "warning: feedback upstream POST failed: %v\n", err)
-					upstreamResult["sent"] = false
-					upstreamResult["error"] = err.Error()
-				} else {
-					upstreamResult["sent"] = true
-					upstreamResult["endpoint"] = endpoint
-				}
-			}
-
 			if flags.asJSON {
 				return printJSONFiltered(cmd.OutOrStdout(), map[string]any{
 					"recorded":  true,
 					"truncated": truncated,
-					"upstream":  upstreamResult,
+					"remote":    "disabled",
 					"entry":     entry,
 				}, flags)
 			}
@@ -169,14 +116,10 @@ maintainer sees it.`,
 				}
 				return ""
 			}())
-			if sent, _ := upstreamResult["sent"].(bool); sent {
-				fmt.Fprintf(cmd.OutOrStdout(), "upstream POST: %v\n", upstreamResult["endpoint"])
-			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&useStdin, "stdin", false, "Read feedback body from stdin rather than arguments")
-	cmd.Flags().BoolVar(&send, "send", false, "POST to the configured feedback endpoint in addition to local write")
 
 	cmd.AddCommand(newFeedbackListCmd(flags))
 	return cmd

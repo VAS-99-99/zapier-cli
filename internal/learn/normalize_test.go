@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"zapier-pp-cli/internal/learn/entities"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn/entities"
 )
 
 func testConfig() *entities.Config {

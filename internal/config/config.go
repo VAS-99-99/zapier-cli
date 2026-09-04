@@ -6,11 +6,11 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-	"zapier-pp-cli/internal/cliutil"
 )
 
 type Config struct {

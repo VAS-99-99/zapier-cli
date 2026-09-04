@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 	"github.com/spf13/cobra"
-	"zapier-pp-cli/internal/store"
 )
 
 func newWorkflowCmd(flags *rootFlags) *cobra.Command {

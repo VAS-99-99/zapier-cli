@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"testing"
 
-	"zapier-pp-cli/internal/store"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 )
 
 func openLearnings(t *testing.T) *store.Store {

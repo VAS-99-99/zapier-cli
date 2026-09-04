@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"zapier-pp-cli/internal/learn"
-	"zapier-pp-cli/internal/store"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 )
 
 // seedCandidate derives one candidate row directly through the store

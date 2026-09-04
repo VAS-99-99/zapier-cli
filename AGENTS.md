@@ -2,6 +2,28 @@
 
 This directory is a generated `zapier-pp-cli` printed CLI. It was produced by [CLI Printing Press](https://github.com/mvanhorn/cli-printing-press), so treat systemic fixes as upstream Printing Press fixes first. Keep local edits narrow and document why a generated-tree patch belongs here.
 
+## Remote Read-Only Product Invariant
+
+This product must never implement or invoke a Zapier mutation, including when a
+future user asks for one. Zapier traffic is limited to REST `GET` and
+query-only GraphQL `POST`; do not add write methods, mutation documents, or
+workflows that change Zapier state.
+
+Allowed remote scope is intentionally narrow:
+
+- session and account-health checks;
+- Zap listing and search;
+- run-history listing;
+- run detail; and
+- failed-step diagnosis.
+
+Local writes for credentials/configuration, caches, receipts/audit, explicitly
+requested file output, local feedback, and the on-device learning store remain
+permitted. They never authorize a remote Zapier write.
+Remote webhook delivery and remote feedback are prohibited as well: the CLI
+must not expose any generic outbound POST escape hatch. Output delivery may use
+stdout or a local file only, and feedback must remain on this machine.
+
 ## Local Operating Contract
 
 Start by asking the generated CLI for current runtime truth:

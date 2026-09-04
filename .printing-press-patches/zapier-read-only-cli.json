@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "id": "zapier-read-only-cli",
+  "applied_at": "2026-09-04",
+  "base_run_id": "20260903-213259-ecc098e3",
+  "base_printing_press_version": "4.31.6",
+  "summary": "Preserve read-only Zap and run inspection, exact GraphQL guards, live provenance, session-cookie onboarding, deterministic nested output, and curated command discovery.",
+  "reason": "These private-CLI behaviors depend on generated-tree customizations that must be rechecked after every reprint, while remote Zapier mutations remain forbidden.",
+  "files": [
+    "AGENTS.md",
+    "spec.yaml",
+    "internal/cli/agent_context.go",
+    "internal/cli/auth.go",
+    "internal/cli/deliver.go",
+    "internal/cli/diagnose.go",
+    "internal/cli/doctor.go",
+    "internal/cli/feedback.go",
+    "internal/cli/helpers.go",
+    "internal/cli/novel_register.go",
+    "internal/cli/root.go",
+    "internal/cli/runs.go",
+    "internal/cli/zaps.go",
+    "internal/client/client.go",
+    "internal/mcp/tools.go"
+  ],
+  "call_sites": [
+    "Remote Read-Only Product Invariant",
+    "diagnoseAnnotations(",
+    "validateReportingGraphQL(",
+    "remote webhook delivery is disabled",
+    "Remote feedback is permanently disabled",
+    "printOutputWithFlagsMeta("
+  ],
+  "validated_outcome": "publish validate passed; focused read-only, auth, output, and diagnosis tests passed; live dogfood passed 72/72 with no hollow novel-feature coverage"
+}

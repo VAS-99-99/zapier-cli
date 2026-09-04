@@ -20,9 +20,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"zapier-pp-cli/internal/learn"
-	"zapier-pp-cli/internal/learn/entities"
-	"zapier-pp-cli/internal/store"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn/entities"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 )
 
 // newTeachPlaybookCmd builds the standalone command for recording a

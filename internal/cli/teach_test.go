@@ -13,11 +13,11 @@ import (
 	"sync"
 	"testing"
 
-	"zapier-pp-cli/internal/cliutil"
-	"zapier-pp-cli/internal/cliutil/testenv"
-	"zapier-pp-cli/internal/learn"
-	"zapier-pp-cli/internal/learn/entities"
-	"zapier-pp-cli/internal/store"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil/testenv"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn/entities"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/store"
 )
 
 func unmarshalAgentResults(t *testing.T, stdout string, out any) {

@@ -1,295 +1,157 @@
 # Zapier CLI
 
-Read-only CLI for your Zapier account: list zaps, check run history, diagnose failures. Never modifies, deletes, or toggles anything.
+`zapier-pp-cli` is a private, remote read-only tool for inspecting a connected
+Zapier account: session health, Zaps, run history, run detail, and failed-step
+diagnosis. It never changes a Zap or runs a Zapier mutation.
 
-Created by [@VAS-99-99](https://github.com/VAS-99-99) (Vas).
+The remote boundary also disables webhook output delivery and remote feedback.
+`--deliver` supports stdout or a local file only; feedback stays on the local
+machine.
 
-## Install
+## Share it privately
 
-The recommended path installs both the `zapier-pp-cli` binary and the `pp-zapier` agent skill (Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, and other agents supported by the upstream [`skills`](https://github.com/vercel-labs/skills) CLI) in one shot:
-
-```bash
-npx -y @mvanhorn/printing-press-library install zapier
-```
-
-For CLI only (no skill):
-
-```bash
-npx -y @mvanhorn/printing-press-library install zapier --cli-only
-```
-
-For skill only — installs the skill into the same agents as the default command above, but skips the CLI binary (use this to update or reinstall just the skill):
+Clone the authorized private source repository, then build locally. This is
+the supported source of truth; the public Printing Press catalog and a public
+latest-release installer are currently unavailable until this CLI is separately
+published.
 
 ```bash
-npx -y @mvanhorn/printing-press-library install zapier --skill-only
+git clone https://github.com/VAS-99-99/zapier-cli.git
+cd zapier-cli
+mkdir -p ./bin
+go build -o ./bin/zapier-pp-cli ./cmd/zapier-pp-cli
+go build -o ./bin/zapier-pp-mcp ./cmd/zapier-pp-mcp
 ```
 
-To constrain the skill install to one or more specific agents (repeatable — agent names match the [`skills`](https://github.com/vercel-labs/skills) CLI):
+For recipients without a Go toolchain, share an approved prebuilt archive from
+`build/share/` through your private distribution channel. Extract it, make the
+binaries executable on Unix, and add the extracted directory containing the
+binaries to `PATH`:
 
 ```bash
-npx -y @mvanhorn/printing-press-library install zapier --agent claude-code
-npx -y @mvanhorn/printing-press-library install zapier --agent claude-code --agent codex
+export PATH="/path/to/extracted-zapier-cli:$PATH"
+zapier-pp-cli --help
 ```
 
-### Without Node (Go fallback)
+Share the matching `.mcpb` archive through the same private channel when a
+recipient uses an MCPB-capable host. Otherwise, point the MCP host at the
+locally built `zapier-pp-mcp` binary. Reconnect or restart the host after
+changing its MCP configuration.
 
-If `npx` isn't available (no Node, offline), install the CLI directly via Go (requires Go 1.26.6 or newer):
+## Credentials
+
+Run `zapier-pp-cli auth setup` for the current steps. Sign in at Zapier, copy
+the complete `Cookie` request-header value from an authenticated browser
+request, and treat it like a password. Never put it in chat, logs, source
+control, or a command that displays it.
+
+On macOS/Linux, use a hidden prompt so the cookie does not enter shell history:
 
 ```bash
-go install github.com/mvanhorn/printing-press-library/library/productivity/zapier/cmd/zapier-pp-cli@latest
+printf 'Paste Zapier session cookie: ' >&2; IFS= read -rs ZAPIER_SESSION_COOKIE; printf '\n' >&2
+printf '%s' "$ZAPIER_SESSION_COOKIE" | zapier-pp-cli auth set-token
+unset ZAPIER_SESSION_COOKIE
+zapier-pp-cli doctor
 ```
 
-This installs the CLI only — no skill.
+On Windows PowerShell, use a temporary, access-restricted file, then run
+`Get-Content -Raw .\private-cookie-file | zapier-pp-cli auth set-token` and
+remove the file with `Remove-Item .\private-cookie-file`.
 
-### Pre-built binary
+`auth set-token` stores the cookie in the local credentials file. Do not share
+that file. MCP hosts need the same `ZAPIER_SESSION_COOKIE` value in their
+private host configuration; never commit the host configuration.
 
-Download a pre-built binary for your platform from the [latest release](https://github.com/mvanhorn/printing-press-library/releases/tag/zapier-current). On macOS, clear the Gatekeeper quarantine: `xattr -d com.apple.quarantine <binary>`. On Unix, mark it executable: `chmod +x <binary>`.
+## Recipient quick start
 
-<!-- pp-hermes-install-anchor -->
-## Install for Hermes
+1. Receive an authorized source checkout or private archive.
+2. Build or extract both CLI and MCP binaries, then add their directory to `PATH`.
+3. Configure the browser session cookie as above and run `doctor`.
+4. Connect or reconnect the MCP host if needed.
+5. Start with `zapier-pp-cli which "failed runs" --json`.
 
-Install the CLI binary first. The installer writes binaries to a per-user managed bin directory by default: `$HOME/.local/bin` on macOS/Linux and `%LOCALAPPDATA%\Programs\PrintingPress\bin` on Windows.
+## What it can do
+
+| Capability | Command | Remote effect |
+| --- | --- | --- |
+| Check session/account health | `session`, `doctor` | Read only |
+| List or search Zaps | `zaps list --name <name>` | Read only |
+| List run history | `runs list --status error` | Read only |
+| Inspect one run | `runs get <run-id>` | Read only |
+| Diagnose failed steps | `diagnose <zap-name-or-id>` | Read only |
+
+It cannot create, edit, enable, disable, replay, cancel, delete, publish, or
+otherwise mutate remote Zapier state.
+
+`api` inventories only raw endpoints defined by the spec. Use `which` and
+`--help` to discover the hand-authored `zaps`, `runs`, and `diagnose` commands.
+
+## Machine output
+
+Use `--agent` for compact JSON and no prompts, `--json` for JSON, `--csv` for
+CSV, or `--plain` for tab-separated text. Nested values serialize as compact
+JSON in CSV and plain output.
 
 ```bash
-npx -y @mvanhorn/printing-press-library install zapier --cli-only
+zapier-pp-cli zaps list --agent
+zapier-pp-cli runs list --status error --json
+zapier-pp-cli diagnose "Billing sync" --plain
 ```
 
-Then install the focused Hermes skill.
-
-From the Hermes CLI:
-
-```bash
-hermes skills install mvanhorn/printing-press-library/cli-skills/pp-zapier --force
-```
-
-Inside a Hermes chat session:
-
-```bash
-/skills install mvanhorn/printing-press-library/cli-skills/pp-zapier --force
-```
-
-Restart the Hermes session or gateway if the newly installed skill is not visible immediately.
-
-## Install for OpenClaw
-Install both the CLI binary and the focused OpenClaw skill. The installer defaults binaries to a per-user bin directory (`$HOME/.local/bin` on macOS/Linux, `%LOCALAPPDATA%\Programs\PrintingPress\bin` on Windows):
-
-```bash
-npx -y @mvanhorn/printing-press-library install zapier --agent openclaw
-```
-
-Restart the OpenClaw session or gateway if the newly installed skill is not visible immediately.
-
-## Use with Claude Desktop
-
-This CLI ships an [MCPB](https://github.com/modelcontextprotocol/mcpb) bundle — Claude Desktop's standard format for one-click MCP extension installs (no JSON config required).
-
-To install:
-
-1. Download the `.mcpb` for your platform from the [latest release](https://github.com/mvanhorn/printing-press-library/releases/tag/zapier-current).
-2. Double-click the `.mcpb` file. Claude Desktop opens and walks you through the install.
-3. Fill in `ZAPIER_SESSION_COOKIE` when Claude Desktop prompts you.
-
-Requires Claude Desktop 1.0.0 or later. Pre-built bundles ship for macOS Apple Silicon (`darwin-arm64`) and Windows (`amd64`, `arm64`); for other platforms, use the manual config below.
-
-<details>
-<summary>Manual JSON config (advanced)</summary>
-
-If you can't use the MCPB bundle (older Claude Desktop, unsupported platform), install the MCP binary and configure it manually.
-
-
-```bash
-go install github.com/mvanhorn/printing-press-library/library/productivity/zapier/cmd/zapier-pp-mcp@latest
-```
-
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+For the four inspection commands, `--agent` returns a stable envelope; parse
+the payload from `.results` and confirm `.meta.source == "live"`:
 
 ```json
-{
-  "mcpServers": {
-    "zapier": {
-      "command": "zapier-pp-mcp",
-      "env": {
-        "ZAPIER_SESSION_COOKIE": "<your-key>"
-      }
-    }
-  }
-}
+{"meta":{"source":"live"},"results":[{"id":101,"state":"on","title":"Example Zap"}]}
 ```
 
-</details>
-
-## Quick Start
-
-### 1. Install
-
-See [Install](#install) above.
-
-### 2. Set Up Credentials
-
-Get your API key from your API provider's developer portal. The key typically looks like a long alphanumeric string.
-
-```bash
-export ZAPIER_SESSION_COOKIE="<paste-your-key>"
-```
-To persist credentials, use `echo "$TOKEN" | zapier-pp-cli auth set-token`. Stored secrets live in `credentials.toml` under the data directory, not in `config.toml`.
-
-### 3. Verify Setup
-
-```bash
-zapier-pp-cli doctor
-```
-
-This checks your configuration and credentials.
-
-### 4. Try Your First Command
-
-```bash
-zapier-pp-cli session
-```
-
-## Usage
-
-Run `zapier-pp-cli --help` for the full command reference and flag list.
-
-## Paths & environment variables
-
-This CLI separates local files into four path kinds:
-
-| Kind | Contents |
-|------|----------|
-| `config` | User-editable settings such as `config.toml` and saved profiles |
-| `data` | Durable local data: `credentials.toml`, `data.db`, cookies, browser-session proof files, and other auth sidecars |
-| `state` | Runtime state such as persisted queries, jobs, and `teach.log` |
-| `cache` | Regenerable HTTP/cache files |
-
-Each kind resolves independently. The ladder is:
-
-1. Per-kind env var: `ZAPIER_CONFIG_DIR`, `ZAPIER_DATA_DIR`, `ZAPIER_STATE_DIR`, or `ZAPIER_CACHE_DIR`
-2. `--home <dir>` for this invocation
-3. `ZAPIER_HOME` for a flat relocated root
-4. XDG env vars: `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME`
-5. Platform defaults matching existing installs
-
-For containers and agent sandboxes, prefer a single relocated root:
-
-```bash
-export ZAPIER_HOME=/srv/zapier
-zapier-pp-cli doctor
-```
-
-Under `ZAPIER_HOME=/srv/zapier`, the four dirs resolve to `/srv/zapier/config`, `/srv/zapier/data`, `/srv/zapier/state`, and `/srv/zapier/cache`.
-
-MCP servers do not receive CLI flags from the host. Put relocation in the host `env` block:
-
-```json
-{
-  "mcpServers": {
-    "zapier": {
-      "command": "zapier-pp-mcp",
-      "env": {
-        "ZAPIER_HOME": "/srv/zapier"
-      }
-    }
-  }
-}
-```
-
-Precedence matters in fleets: an ambient per-kind variable such as `ZAPIER_DATA_DIR` overrides an explicit `--home` for that kind. Use `ZAPIER_HOME` or the per-kind variables for durable fleet relocation; treat `--home` as the weaker per-invocation lever.
-
-Relocation is one-way. Unsetting `ZAPIER_HOME` does not move files back to platform defaults, and `doctor` cannot find credentials left under a former root. Move the files manually before unsetting relocation variables.
-
-Existing installs keep working because the platform-default rung matches the legacy layout. On the first auth write, stored secrets leave `config.toml` and are consolidated into `credentials.toml` under the data directory. Run `zapier-pp-cli doctor --fail-on warn` to check path and credential-location warnings in automation.
-
-## Commands
-
-### session
-
-Session/account status
-
-- **`zapier-pp-cli session`** - Check whether the saved session cookie is still valid
-
-
-### Self-learning loop
-
-This CLI caches per-question discovery so repeat queries skip the walk and structurally similar queries get answered via entity substitution. The loop also self-captures: every invocation is journaled locally, and failed-flag corrections plus fresh teaches surface as candidates on the next `recall` for confirm/reject judgment. Agents call `recall` before discovery and fire `teach &` after answering. See the `## Automatic learning` section in `SKILL.md` for the full protocol.
-
-- **`zapier-pp-cli recall <query>`** - Look up cached resources for a query before running discovery
-- **`zapier-pp-cli teach`** - Record a query -> resource mapping (silent on success, safe to background with `&`)
-- **`zapier-pp-cli learnings list`** - Inspect taught rows
-- **`zapier-pp-cli learnings forget <query>`** - Undo a teach
-- **`zapier-pp-cli learnings candidates`** - List auto-captured candidates awaiting confirm/reject
-- **`zapier-pp-cli learnings stats`** - Local loop metrics: recall hit rate, teach-to-reuse, playbook resolution, candidate counts
-- **`zapier-pp-cli teach-pattern`** - Install a query/resource template up front
-- **`zapier-pp-cli teach-lookup`** - Add an entity mapping (e.g. country code, team alias) for pattern substitution
-
-Pass `--no-learn` or set `ZAPIER_NO_LEARN=true` to disable the loop for deterministic flows.
-
-The local store's schema version stamp is one-way: once this version of `zapier-pp-cli` opens the database, older binaries refuse it with a version error — upgrade the binary rather than downgrading.
-
-## Output Formats
-
-```bash
-# Human-readable table (default in terminal, JSON when piped)
-zapier-pp-cli session
-
-# JSON for scripting and agents
-zapier-pp-cli session --json
-# Filter to specific fields by name
-zapier-pp-cli session --json --select <field>[,<field>...]
-
-# Dry run — show the request without sending
-zapier-pp-cli session --dry-run
-
-# Agent mode — JSON + compact + no prompts in one flag
-zapier-pp-cli session --agent
-```
-
-## Agent Usage
-
-This CLI is designed for AI agent consumption:
-
-- **Non-interactive** - never prompts, every input is a flag
-- **Pipeable** - `--json` output to stdout, errors to stderr
-- **Filterable** - `--select <field>[,<field>...]` returns only fields you need
-- **Previewable** - `--dry-run` shows the request without sending
-- **Read-only by default** - this CLI does not create, update, delete, publish, send, or mutate remote resources
-- **Offline-friendly** - sync/search commands can use the local SQLite store when available
-- **Agent-safe by default** - no colors or formatting unless `--human-friendly` is set
-
-Exit codes: `0` success, `2` usage error, `3` not found, `4` auth error, `5` API error, `7` rate limited, `10` config error.
-
-## Health Check
-
-```bash
-zapier-pp-cli doctor
-```
-
-Verifies configuration, credentials, and connectivity to the API.
-
-## Configuration
-
-Run `zapier-pp-cli doctor` to see the resolved config, data, state, and cache directories. The platform-default config path is ``; `--home`, `ZAPIER_HOME`, and per-kind env vars can relocate it.
-
-Static request headers can be configured under `headers`; per-command header overrides take precedence.
-
-Environment variables:
-
-| Name | Kind | Required | Description |
-| --- | --- | --- | --- |
-| `ZAPIER_SESSION_COOKIE` | per_call | Yes | Set to your API credential. |
-
-### agentcookie (optional)
-
-If you use agentcookie to sync secrets across machines, this CLI auto-adopts agentcookie-managed credentials with no extra setup. When the daemon writes to this CLI's config, `zapier-pp-cli doctor` reports `agentcookie: detected` and `auth-status` labels the source as `agentcookie`. Skip this section if you don't use agentcookie - the CLI works the same as any other.
+`--json` without `--agent` returns the bare JSON value instead. The `zaps list`,
+`runs list`, `runs get`, and `diagnose` commands are live-only: pass
+`--data-source live` when making the choice explicit. A working account
+connection is a prerequisite; `doctor` reports whether the saved session
+cookie is present.
 
 ## Troubleshooting
-**Authentication errors (exit code 4)**
-- Run `zapier-pp-cli doctor` to check credentials
-- Verify the environment variable is set: `echo $ZAPIER_SESSION_COOKIE`
-**Not found errors (exit code 3)**
-- Check the resource ID is correct
-- Run the `list` command to see available items
 
----
+If a recipient cannot run the binary, check `PATH` and reconnect the MCP host
+after updating its command or environment. If authentication fails, repeat the
+browser-session setup with a fresh Cookie header; do not print its value while
+debugging.
 
-Generated by [CLI Printing Press](https://github.com/mvanhorn/cli-printing-press)
+## Unique Features
+
+These capabilities aren't available in any other tool for this API.
+
+### Read-only Zap inspection
+- **`zaps list`** — List Zaps and filter by a case-insensitive title substring without changing them.
+
+  _Agents can safely resolve a Zap before inspecting its historical runs._
+
+  ```bash
+  zapier-pp-cli zaps list --name webhook --limit 5 --agent
+  ```
+
+### Read-only run inspection
+- **`runs list`** — List historical Zap runs with optional Zap and status filters.
+
+  _Agents can find the relevant failed execution using a bounded live read._
+
+  ```bash
+  zapier-pp-cli runs list --status error --limit 10 --agent
+  ```
+- **`runs get`** — Open one historical run and return every step's status, input, output, and error.
+
+  _Agents can inspect exactly what happened inside a known run without replaying it._
+
+  ```bash
+  zapier-pp-cli runs get <run-id> --agent
+  ```
+
+### Read-only diagnosis
+- **`diagnose`** — Resolve a Zap and report the exact failed step and error from recent failed runs.
+
+  _Agents can answer where and why a Zap failed while preserving the product's strict read-only boundary._
+
+  ```bash
+  zapier-pp-cli diagnose <zap-id> --limit 5 --agent
+  ```

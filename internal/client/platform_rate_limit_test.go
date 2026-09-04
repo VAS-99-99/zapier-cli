@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"zapier-pp-cli/internal/cliutil"
-	"zapier-pp-cli/internal/config"
-	"zapier-pp-cli/internal/platform"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/config"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/platform"
 )
 
 func TestPlatformRateLimitRetriesSafeRequestAndRecordsMetadata(t *testing.T) {

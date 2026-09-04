@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"zapier-pp-cli/internal/learn/entities"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn/entities"
 )
 
 // EntityResolver looks up a token in entity_lookups to find its

@@ -12,10 +12,10 @@ import (
 
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"zapier-pp-cli/internal/cli"
-	"zapier-pp-cli/internal/client"
-	"zapier-pp-cli/internal/config"
-	"zapier-pp-cli/internal/platform"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cli"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/client"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/config"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/platform"
 )
 
 func TestMCPEveryRegisteredToolHasFreshTenantGate(t *testing.T) {

@@ -2,12 +2,14 @@ name: zapier
 description: "Read-only CLI for your Zapier account: list zaps, check run history, diagnose failures. Never modifies, deletes, or toggles anything."
 version: "0.1.0"
 base_url: "https://zapier.com"
+website_url: "https://zapier.com"
 health_check_path: "/api/v4/session"
 
 auth:
   type: api_key
   header: "Cookie"
   format: "{token}"
+  instructions: "Sign in at https://zapier.com/app/login, then copy the complete Cookie request-header value from an authenticated Zapier request. Treat the value as a password and set it in ZAPIER_SESSION_COOKIE."
   env_vars:
     - ZAPIER_SESSION_COOKIE
 

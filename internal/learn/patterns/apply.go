@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"zapier-pp-cli/internal/learn/lookups"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn/lookups"
 )
 
 // DefaultJaccardMin matches the recall-side floor. Applying the same

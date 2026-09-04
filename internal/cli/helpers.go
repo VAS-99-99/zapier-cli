@@ -22,12 +22,12 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/client"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/config"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/platform"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"zapier-pp-cli/internal/client"
-	"zapier-pp-cli/internal/cliutil"
-	"zapier-pp-cli/internal/config"
-	"zapier-pp-cli/internal/platform"
 )
 
 var As = errors.As
@@ -349,17 +349,17 @@ func classifyAPIErrorOnly(err error) error {
 		return authErr(err)
 	case strings.Contains(msg, "HTTP 400") && cliutil.LooksLikeAuthError(msg):
 		return authErr(fmt.Errorf("%w\nhint: the API rejected the request — this usually means auth is missing or invalid."+
-			"\n      Set your API key with: export ZAPIER_SESSION_COOKIE=\"your-token-here\""+
+			"\n      Run 'zapier-pp-cli auth setup' for safe session-cookie instructions."+
 			"\n      Run 'zapier-pp-cli doctor' to check auth status."+
 			"\n      Response: "+cliutil.SanitizeErrorBody(msg), err))
 	case strings.Contains(msg, "HTTP 401"):
-		return authErr(fmt.Errorf("%w\nhint: check your API key."+
-			" Set your API key with: export ZAPIER_SESSION_COOKIE=\"your-token-here\""+
+		return authErr(fmt.Errorf("%w\nhint: check your session cookie."+
+			" Run 'zapier-pp-cli auth setup' for safe session-cookie instructions."+
 			"\n      Run 'zapier-pp-cli doctor' to check auth status.", err))
 	case strings.Contains(msg, "HTTP 403"):
 		return authErr(fmt.Errorf("%w\nhint: permission denied. Your credentials are valid but lack access to this resource."+
 			"\n      Check that your credentials have the required permissions and match the API's expected auth scheme."+
-			"\n      Set your API key with: export ZAPIER_SESSION_COOKIE=\"your-token-here\""+
+			"\n      Run 'zapier-pp-cli auth setup' for safe session-cookie instructions."+
 			"\n      Run 'zapier-pp-cli doctor' to check auth status.", err))
 	case strings.Contains(msg, "HTTP 404"):
 		return notFoundErr(fmt.Errorf("%w\nhint: resource not found. Run the 'list' command to see available items", err))
@@ -1920,21 +1920,11 @@ func printCSV(w io.Writer, data json.RawMessage) error {
 	for _, item := range items {
 		var vals []string
 		for _, k := range keys {
-			v := item[k]
-			if v == nil {
-				vals = append(vals, "")
-			} else {
-				var s string
-				if f, ok := v.(float64); ok {
-					s = strconv.FormatFloat(f, 'f', -1, 64)
-				} else {
-					s = fmt.Sprintf("%v", v)
-				}
-				if strings.ContainsAny(s, ",\"\n") {
-					s = `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
-				}
-				vals = append(vals, s)
+			s := outputCellValue(item[k])
+			if strings.ContainsAny(s, ",\"\n") {
+				s = `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
 			}
+			vals = append(vals, s)
 		}
 		fmt.Fprintln(w, strings.Join(vals, ","))
 	}
@@ -1975,20 +1965,31 @@ func printPlain(w io.Writer, data json.RawMessage) error {
 }
 
 func plainCellValue(v any) string {
-	if v == nil {
-		return ""
-	}
-	var s string
-	if f, ok := v.(float64); ok {
-		s = strconv.FormatFloat(f, 'f', -1, 64)
-	} else {
-		s = fmt.Sprintf("%v", v)
-	}
+	s := outputCellValue(v)
 	s = strings.ReplaceAll(s, "\t", " ")
 	s = strings.ReplaceAll(s, "\r\n", " ")
 	s = strings.ReplaceAll(s, "\n", " ")
 	s = strings.ReplaceAll(s, "\r", " ")
 	return s
+}
+
+// outputCellValue preserves historical scalar rendering while serializing
+// nested JSON values compactly and deterministically. json.Marshal sorts map
+// keys, making CSV and plain output stable across Go map iteration order.
+func outputCellValue(v any) string {
+	if v == nil {
+		return ""
+	}
+	if f, ok := v.(float64); ok {
+		return strconv.FormatFloat(f, 'f', -1, 64)
+	}
+	switch v.(type) {
+	case map[string]any, []any:
+		if b, err := json.Marshal(v); err == nil {
+			return string(b)
+		}
+	}
+	return fmt.Sprintf("%v", v)
 }
 
 // printOutput auto-detects arrays and renders as tables, or prints raw JSON for objects.
@@ -2542,7 +2543,7 @@ func printProvenance(cmd *cobra.Command, count int, prov DataProvenance) {
 func nonJSONPayloadError(data json.RawMessage) error {
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) > 0 && trimmed[0] == '<' {
-		return authErr(fmt.Errorf("not authenticated or session expired; API returned HTML instead of JSON. " + "Set your API key with: export ZAPIER_SESSION_COOKIE=\"your-token-here\""))
+		return authErr(fmt.Errorf("not authenticated or session expired; API returned HTML instead of JSON. Run 'zapier-pp-cli auth setup' for safe session-cookie instructions"))
 	}
 	if len(trimmed) == 0 {
 		return apiErr(fmt.Errorf("API returned an empty response body; expected JSON"))

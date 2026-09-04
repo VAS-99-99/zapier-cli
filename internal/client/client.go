@@ -12,6 +12,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/config"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/platform"
 	"html"
 	"io"
 	"math"
@@ -26,9 +29,6 @@ import (
 	"sync"
 	"time"
 	"unicode"
-	"zapier-pp-cli/internal/cliutil"
-	"zapier-pp-cli/internal/config"
-	"zapier-pp-cli/internal/platform"
 )
 
 const BinaryResponseHeader = "X-Printing-Press-Binary-Response"
@@ -1399,7 +1399,7 @@ func authHeaderLooksLikePlaceholderCredential(header string) bool {
 			return true
 		}
 	}
-	if !strings.Contains(header, "<") && !strings.Contains(header, "YOUR_TOKEN_HERE") && !strings.Contains(header, "your-token") && !strings.Contains(header, "your-key") {
+	if !strings.Contains(header, "<") && !strings.Contains(header, "YOUR_SESSION_COOKIE_HERE") && !strings.Contains(header, "your-session-cookie") && !strings.Contains(header, "YOUR_TOKEN_HERE") && !strings.Contains(header, "your-token") && !strings.Contains(header, "your-key") {
 		return false
 	}
 	for _, field := range strings.Fields(header) {
@@ -1422,7 +1422,8 @@ func authHeaderLooksLikePlaceholderCredential(header string) bool {
 func looksLikeCredentialPlaceholder(value string) bool {
 	value = strings.Trim(strings.TrimSpace(value), `"'`)
 	switch value {
-	case "<your-token>", "<your-key>", "<paste-your-key>", "YOUR_TOKEN_HERE", "your-token-here":
+	case "<your-session-cookie>", "<paste-session-cookie>", "YOUR_SESSION_COOKIE_HERE", "your-session-cookie",
+		"<your-token>", "<your-key>", "<paste-your-key>", "YOUR_TOKEN_HERE", "your-token-here":
 		return true
 	}
 	if len(value) < 3 || value[0] != '<' || value[len(value)-1] != '>' {
@@ -1437,7 +1438,7 @@ func looksLikeCredentialPlaceholder(value string) bool {
 }
 
 func authPlaceholderCredentialError(cfg *config.Config) error {
-	return authPlaceholderCredentialErrorWithSetup(cfg, "export ZAPIER_SESSION_COOKIE=<your-token-here> or echo \"$TOKEN\" | zapier-pp-cli auth set-token")
+	return authPlaceholderCredentialErrorWithSetup(cfg, "run 'zapier-pp-cli auth setup' for safe session-cookie instructions")
 }
 
 func authPlaceholderCredentialErrorWithSetup(cfg *config.Config, setup string) error {
@@ -1445,7 +1446,7 @@ func authPlaceholderCredentialErrorWithSetup(cfg *config.Config, setup string) e
 	if cfg != nil && cfg.Path != "" {
 		location = cfg.Path
 	}
-	return fmt.Errorf("%w configured in %s; set a real token with: %s", ErrPlaceholderCredential, location, setup)
+	return fmt.Errorf("%w configured in %s; set a real session cookie with: %s", ErrPlaceholderCredential, location, setup)
 }
 
 // binaryResponseEnvelope wraps a non-textual success body so it survives the

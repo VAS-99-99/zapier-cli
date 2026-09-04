@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"os"
 
-	"zapier-pp-cli/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
 )
 
 // verifyPrivatePerms reports an unsafe owner or DACL on stderr and allows the

@@ -14,10 +14,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil/testenv"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/config"
 	"github.com/pelletier/go-toml/v2"
-	"zapier-pp-cli/internal/cliutil"
-	"zapier-pp-cli/internal/cliutil/testenv"
-	"zapier-pp-cli/internal/config"
 )
 
 func resetCredentialEnv(t *testing.T) (home, configPath string) {

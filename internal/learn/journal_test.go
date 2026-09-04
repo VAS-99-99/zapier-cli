@@ -17,10 +17,10 @@ import (
 	"testing"
 	"time"
 
-	"zapier-pp-cli/internal/cli"
-	"zapier-pp-cli/internal/cliutil"
-	"zapier-pp-cli/internal/cliutil/testenv"
-	"zapier-pp-cli/internal/learn"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cli"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil/testenv"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/learn"
 )
 
 // withJournalHome isolates a test in a temp HOME with every journal
