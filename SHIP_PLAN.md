@@ -25,7 +25,7 @@ and `LICENSE`. Windows executables use `.exe`. The release also contains one
 
 ## User journey (maximum five stages)
 
-1. Give the private repository URL to Claude or Codex and let the agent download
+1. Give the public repository URL to Claude or Codex and let the agent download
    the latest release asset for the current OS and architecture. Private-repo
    access is handled through GitHub CLI authentication.
 2. Run the platform installer. It verifies the checksum, puts both binaries in
@@ -52,7 +52,7 @@ release-specific tests.
 - Create deterministic archives, include docs/license, and generate
   `SHA256SUMS`.
 - Trigger only on an explicit version tag or manual workflow dispatch.
-- Upload artifacts to a private GitHub Release using the repository token.
+- Upload artifacts to a public GitHub Release using the repository token.
 - Add a verification script that inspects archive contents and validates every
   checksum.
 
@@ -65,7 +65,7 @@ Owner files: `install.ps1`, `install.sh`, and installer tests.
 
 - Detect OS and architecture, select the matching release asset, and fail with
   a precise unsupported-platform message.
-- For the private repository, use an authenticated `gh` session to resolve and
+- Use an authenticated `gh` session to resolve and
   download the latest release. Never embed a GitHub token.
 - Verify the downloaded archive against `SHA256SUMS` before extraction.
 - Install both executables in a user-local application bin directory without
@@ -100,12 +100,12 @@ instruction, and all docs agree on commands, supported targets, and safety.
 - Run unit tests, race-sensitive auth tests, vet, Windows cross-build, read-only
   transport/source scans, secret-output scans, workflow validation, installer
   tests, and release dry-run verification.
-- Create a prerelease in the private repository and perform a clean Windows x64
+- Create a prerelease in the public repository and perform a clean Windows x64
   install from that release with no Go toolchain involved.
 - Open the visible login window. After sign-in, make `session --agent --no-learn`
   the only live Zapier call, report the exact account, and stop for confirmation.
 - After confirmation, complete bounded read-only acceptance tests, publish the
-  final private release, and verify its downloadable assets and checksums.
+  final public release, and verify its downloadable assets and checksums.
 
 ## Plan re-verification
 
@@ -131,7 +131,7 @@ instruction, and all docs agree on commands, supported targets, and safety.
 ## Final evidence required
 
 1. Passing test/vet/security reports from the exact release commit.
-2. Four verified archives plus `SHA256SUMS` in the private GitHub Release.
+2. Four verified archives plus `SHA256SUMS` in the public GitHub Release.
 3. A clean Windows x64 installation performed from the release, without Go.
 4. The exact account identity from the session-only checkpoint and the user's
    explicit confirmation before broader live tests.

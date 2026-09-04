@@ -58,7 +58,7 @@ if ($LASTEXITCODE -ne 0) {
 if ([string]::IsNullOrWhiteSpace($Tag)) {
     $TagOutput = & gh release view --repo $Repository --json tagName --jq .tagName 2>$null
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($TagOutput -join ''))) {
-        Stop-Install "could not resolve the latest release in $Repository; confirm that your GitHub account can access the private repository"
+        Stop-Install "could not resolve the latest release in $Repository; confirm that GitHub CLI is authenticated and the release is available"
     }
     $Tag = ($TagOutput -join '').Trim()
 }

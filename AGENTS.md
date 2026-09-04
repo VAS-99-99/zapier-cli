@@ -34,16 +34,19 @@ zapier-pp-cli doctor --json
 zapier-pp-cli agent-context --pretty
 ```
 
-Normal-user installation must use the checksummed private GitHub Release via
+Normal-user installation must use the checksummed public GitHub Release via
 `install.sh` or `install.ps1`. Keep Go builds in contributor workflows. The CLI
 owns its pinned browser helper and browser; users do not install or operate Go,
 Node.js, npm, Playwright, agent-browser, a browser extension, or a cookie export
 tool.
 
-Immediately after `auth browser`, the account-safety checkpoint overrides that
-order: run only `zapier-pp-cli session --agent --no-learn`, show the exact
-account identity, and stop for user confirmation. Do not run `doctor` or any
-other live read until the user confirms that account.
+Authentication is a user-owned boundary. An agent may install and audit the
+CLI, but it must stop and tell the user to run `zapier-pp-cli auth browser`
+personally. After the user reports `connected`, the account-safety checkpoint
+overrides the established-connection order: run only
+`zapier-pp-cli session --agent --no-learn`, show the exact account identity,
+and stop for user confirmation. Do not run `doctor` or another live read until
+the user confirms that account.
 
 Use runtime discovery instead of relying on a copied command list:
 
@@ -107,7 +110,7 @@ resolved credential bytes. Do not edit generator-owned `internal/platform`
 packages; a reprint refreshes those files while retaining the downstream
 registration file.
 
-For private-release install, auth, MCP setup, reconnect, uninstall, examples,
+For release install, auth, MCP setup, reconnect, uninstall, examples,
 and longer product guidance, read `README.md` and `SKILL.md`. This file stays
 small so repo-local agents get invariant local guidance without duplicating the
 generated docs.

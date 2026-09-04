@@ -1,6 +1,6 @@
 ---
 name: pp-zapier
-description: "Install and use the private Zapier CLI for read-only account checks, Zap searches, historical run inspection, and failed-step diagnosis."
+description: "Install and use the Zapier CLI for read-only account checks, Zap searches, historical run inspection, and failed-step diagnosis."
 allowed-tools: "Read Bash"
 ---
 
@@ -13,29 +13,24 @@ delete anything in Zapier.
 
 ## Install and connect
 
-Complete these five stages in order. The private repository is
+Complete these five stages in order. The public repository is
 `https://github.com/VAS-99-99/zapier-cli`.
 
-1. Make sure the official GitHub CLI is installed. Confirm `gh auth status`
-   succeeds and the signed-in GitHub account can read
-   `VAS-99-99/zapier-cli`. Guide the user through `gh auth login` if needed.
-   Stop if the account has not been invited. Clone with
+1. Make sure the official GitHub CLI is installed and `gh auth status`
+   succeeds. Clone with
    `gh repo clone VAS-99-99/zapier-cli`, or safely update the existing clone.
 2. Run `./install.sh` on macOS/Linux or
    `powershell -ExecutionPolicy Bypass -File .\install.ps1` on Windows. The
-   installer downloads the matching private GitHub Release, verifies SHA-256,
+   installer downloads the matching public GitHub Release, verifies SHA-256,
    and installs both binaries. Normal users need no Go, Node.js, npm,
    Playwright, agent-browser, browser extension, or Zapier token. Verify
    `zapier-pp-cli --version`, then run the exact Claude or Codex MCP
    registration command printed by the installer.
-3. Run `zapier-pp-cli auth browser`. The CLI manages its pinned browser helper
-   and browser, opens a visible dedicated window, waits for the user's Zapier
-   sign-in, saves the Zapier-scoped session in protected local storage, and
-   closes the window. Keep credentials out of chat, arguments, logs,
-   screenshots, source control, MCP configuration, and manually created files.
-   Protected storage managed by the CLI is the only supported destination.
-   Never ask the user to handle a cookie or token.
-4. Make only this first live call:
+3. Stop and tell the user to run `zapier-pp-cli auth browser` personally in
+   their own terminal. Do not run authentication, inspect browser storage, read
+   the credential store, or request a cookie or token. The user completes the
+   visible Zapier login outside the agent and reports `connected`.
+4. Only after the user reports `connected`, make this first live call:
    `zapier-pp-cli session --agent --no-learn`. Show the exact account identity
    and stop for confirmation. Before confirmation, do not run `doctor` or any
    other live read.
@@ -104,8 +99,9 @@ when the invocation must not read or write the local learning store.
 
 ## Reconnect and uninstall
 
-Reconnect with `zapier-pp-cli auth browser`. Then repeat the session-only
-account checkpoint and stop for confirmation.
+For reconnect, tell the user to run `zapier-pp-cli auth browser` personally.
+After the user reports `connected`, repeat the session-only account checkpoint
+and stop for confirmation.
 
 Uninstall in this order:
 

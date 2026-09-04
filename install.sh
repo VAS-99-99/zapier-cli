@@ -11,7 +11,7 @@ TEMP_DIR=""
 
 usage() {
   cat <<'EOF'
-Install the prebuilt Zapier read-only CLI from its private GitHub repository.
+Install the prebuilt Zapier read-only CLI from its public GitHub repository.
 
 Usage: ./install.sh [options]
 
@@ -110,7 +110,7 @@ fi
 
 if [ -z "$TAG" ]; then
   TAG=$(gh release view --repo "$REPOSITORY" --json tagName --jq .tagName 2>/dev/null) ||
-    fail "could not resolve the latest release in $REPOSITORY; confirm that your GitHub account can access the private repository"
+    fail "could not resolve the latest release in $REPOSITORY; confirm that GitHub CLI is authenticated and the release is available"
   [ -n "$TAG" ] || fail "the repository does not have a published release"
 fi
 

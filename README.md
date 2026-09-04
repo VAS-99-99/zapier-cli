@@ -9,60 +9,25 @@ extension, or a Zapier developer token. The release installers provide the CLI
 and MCP binaries. `auth browser` manages its pinned browser helper and browser
 inside the CLI.
 
-## Give this to your agent
+## Give this to Claude or Codex
 
-Copy this whole block into Claude or Codex:
+Copy the block below. It keeps authentication outside the agent, which avoids
+asking Claude to capture or handle a live browser session. The same text is in
+`CLAUDE_INSTALL_PROMPT.txt`.
 
 ```text
-Install the private Zapier read-only CLI from
-https://github.com/VAS-99-99/zapier-cli and connect my Zapier account.
+Clone https://github.com/VAS-99-99/zapier-cli and follow the repository instructions. Read CLAUDE.md, AGENTS.md, and README.md before taking action. This is my public source repository for an unofficial, remotely read-only Zapier inspection tool.
 
-Complete these five stages in order:
+Audit the source, the read-only network boundary, the release workflow, and the published SHA256SUMS before installing anything. Install only the matching prebuilt GitHub Release. The installer only writes local CLI and MCP files; it does not authenticate or contact Zapier. Do not install Go or build from source.
 
-1. ACCESS. Make sure the official GitHub CLI is installed. Check
-   `gh auth status` and confirm my GitHub account can read
-   `VAS-99-99/zapier-cli`. Guide me through `gh auth login` in the browser if
-   needed. Stop if my account has not been invited. Clone the repository with
-   `gh repo clone VAS-99-99/zapier-cli`, or safely update an existing clone.
+You are not being asked to authenticate, capture a session, inspect browser storage, or handle a cookie or token. After installation, stop and tell me to run `zapier-pp-cli auth browser` myself in my own terminal. I will complete the visible Zapier login outside Claude.
 
-2. INSTALL. Detect my OS and CPU, then run the repository installer. On macOS
-   or Linux run `./install.sh`. On Windows PowerShell run
-   `powershell -ExecutionPolicy Bypass -File .\install.ps1`. The installer must
-   download the matching private GitHub Release, verify SHA-256, and install
-   `zapier-pp-cli` and `zapier-pp-mcp`. Normal setup must not install Go,
-   Node.js, npm, Playwright, agent-browser, or a browser extension. Verify
-   `zapier-pp-cli --version`, then run the exact MCP registration command
-   printed by the installer for this host.
-
-3. CONNECT. Run `zapier-pp-cli auth browser`. Let the CLI manage its pinned
-   browser helper and browser. Have me sign in to Zapier in the visible window,
-   then let the command save the Zapier-scoped session in protected local
-   storage and close the window. Never ask me to find, copy, paste, reveal, or
-   transmit a cookie or token. Never put one in chat, command arguments, logs,
-   screenshots, source control, or an MCP configuration, and never manually
-   copy or save one in an arbitrary file. Protected storage managed by the CLI
-   is the only supported destination.
-
-4. VERIFY, THEN STOP. The first live Zapier call after `auth browser` must be
-   only `zapier-pp-cli session --agent --no-learn`. Show me the exact connected
-   account identity and stop. Do not run `doctor`, list Zaps, or read any other
-   account data until I confirm that this is the correct account.
-
-5. USE AFTER CONFIRMATION. After I confirm the account, run
-   `zapier-pp-cli doctor --json` and the bounded read-only smoke test
-   `zapier-pp-cli zaps list --limit 3 --agent --no-learn`. Then use only the
-   documented read commands.
-
-Read and obey AGENTS.md. This product is remotely read only. Never create,
-edit, enable, disable, rename, publish, replay, cancel, or delete anything in
-Zapier. Never add a generic outbound POST, webhook delivery, remote feedback,
-or a general-purpose browser MCP. Local installation, protected credential
-storage, local files, and the local learning store are allowed.
+Only after I explicitly reply `connected`, run `zapier-pp-cli session --agent --no-learn`. Show me the exact connected account and stop for confirmation. Before that confirmation, do not run doctor, list Zaps, inspect runs, or make any other Zapier request. Never perform a remote Zapier write.
 ```
 
 ## Supported systems
 
-The private GitHub Release contains these checksummed archives:
+The public GitHub Release contains these checksummed archives:
 
 | System | Release asset |
 | --- | --- |
@@ -72,13 +37,13 @@ The private GitHub Release contains these checksummed archives:
 | Linux x64 | `zapier-cli_linux_x86_64.tar.gz` |
 
 Each archive contains `zapier-pp-cli`, `zapier-pp-mcp`, this README, the agent
-skill, and the license. `SHA256SUMS` covers every archive. Because the repository
-is private, the installer requires a GitHub account that has access and an
-authenticated `gh` session. It never embeds or saves a GitHub token itself.
+skill, and the license. `SHA256SUMS` covers every archive. The current installer
+uses an authenticated `gh` session to download the release. It never embeds or
+saves a GitHub token itself.
 
 ## Install manually
 
-Clone the private repository after authenticating GitHub CLI:
+Clone the public repository after authenticating GitHub CLI:
 
 ```bash
 gh auth login
@@ -122,7 +87,8 @@ zapier-pp-cli auth browser
 ```
 
 The CLI downloads its pinned browser components into user-local storage when
-needed and opens a dedicated visible window. Sign in to Zapier there. The CLI
+needed and opens a dedicated visible window. Run this command yourself rather
+than asking an agent to handle authentication. Sign in to Zapier there. The CLI
 saves only the Zapier-scoped session to protected local credential storage and
 does not print it or create an export file.
 
