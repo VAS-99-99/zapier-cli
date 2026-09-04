@@ -11,6 +11,23 @@ list and search Zaps, list run history, fetch a run, and diagnose failed steps.
 It intentionally cannot create, edit, enable, disable, replay, cancel, delete,
 publish, or otherwise change Zapier state.
 
+## Install from the private repository
+
+The source of truth is the private repository at
+`https://github.com/VAS-99-99/zapier-cli`. Before installation, confirm the
+user's GitHub account has been invited. Use existing GitHub authentication and
+stop if the repository is inaccessible.
+
+There is currently no private GitHub release or public catalog installer. If
+`zapier-pp-cli --version` is unavailable, clone or safely update the repository,
+verify Go 1.26.6 or newer, build `./cmd/zapier-pp-cli` and
+`./cmd/zapier-pp-mcp`, install them in a user-local bin directory, and verify
+the CLI. Ask before installing Go, a browser, or another system dependency.
+
+Do not install or recommend a cookie-export extension. A supported browser's
+built-in developer tools provide the authenticated `Cookie` request header.
+Never ask the user to reveal that value to the agent or paste it into chat.
+
 ## Discover before acting
 
 Ask the runtime rather than assuming a copied command list:
@@ -32,9 +49,11 @@ discover the hand-authored `zaps`, `runs`, and `diagnose` commands.
 ## Connection prerequisite
 
 All remote reads require a connected Zapier browser session. Run
-`zapier-pp-cli auth setup`, sign in at `https://zapier.com/app/login`, and copy
-the complete `Cookie` request-header value from an authenticated request.
-Treat it as a password: never send it to chat, logs, or a displaying command.
+`zapier-pp-cli auth setup --launch`, sign in, and guide the user through copying
+the complete `Cookie` request-header value from an authenticated request in the
+browser's Network developer tools. Treat it as a password: never send it to
+chat, logs, screenshots, source control, command arguments, or a displaying
+command.
 
 ```bash
 printf 'Paste Zapier session cookie: ' >&2; IFS= read -rs ZAPIER_SESSION_COOKIE; printf '\n' >&2
@@ -43,16 +62,34 @@ unset ZAPIER_SESSION_COOKIE
 zapier-pp-cli doctor
 ```
 
-On Windows PowerShell, put the cookie in a temporary, access-restricted file,
-run `Get-Content -Raw .\private-cookie-file | zapier-pp-cli auth set-token`,
-then remove it with `Remove-Item .\private-cookie-file`.
+On Windows PowerShell, use the following hidden prompt instead of the
+temporary-file fallback printed by `auth setup`:
+
+```powershell
+$SecureCookie = Read-Host 'Paste Zapier session cookie' -AsSecureString
+$CookiePtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureCookie)
+try {
+  [Runtime.InteropServices.Marshal]::PtrToStringBSTR($CookiePtr) | zapier-pp-cli auth set-token
+} finally {
+  [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($CookiePtr)
+  Remove-Variable SecureCookie, CookiePtr -ErrorAction SilentlyContinue
+}
+```
+
+This avoids a plaintext file, zeroes its temporary unmanaged buffer, and
+clears its PowerShell variables when it finishes.
 
 The cookie is an account connection, not a developer key. `auth status` only
 reports local presence; it does not prove the browser session remains valid.
 
-These public-catalog commands are unavailable until this CLI is separately
-published. Do not use them today; build from the authorized private source or
-use an approved private archive as described in `README.md`.
+After saving the cookie, run `doctor --json`, then `session --agent --no-learn`.
+Show the user the account identity returned by that live check and stop for
+confirmation. Only after confirmation should you run the bounded read-only
+smoke test `zaps list --limit 3 --agent --no-learn`.
+
+Public-catalog installation commands remain unavailable. Do not invent or use
+one; build from the authorized private source or use an approved private
+archive as described in `README.md`.
 
 <details><summary>Future public install, currently unavailable</summary>
 

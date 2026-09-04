@@ -8,12 +8,113 @@ The remote boundary also disables webhook output delivery and remote feedback.
 `--deliver` supports stdout or a local file only; feedback stays on the local
 machine.
 
-## Share it privately
+## Five-step setup for a new user
 
-Clone the authorized private source repository, then build locally. This is
-the supported source of truth; the public Printing Press catalog and a public
-latest-release installer are currently unavailable until this CLI is separately
-published.
+No Zapier developer key or browser extension is required. This CLI connects to
+the Zapier account already signed in through a browser. It does not have a
+one-click OAuth flow: the user privately copies one authenticated request's
+`Cookie` header into the CLI's hidden local prompt.
+
+1. The repository owner invites the recipient's GitHub account to
+   [`VAS-99-99/zapier-cli`](https://github.com/VAS-99-99/zapier-cli).
+2. The recipient copies the prompt below into a coding agent with terminal
+   access.
+3. The agent installs the CLI and opens Zapier's login page. It asks before
+   installing any missing system dependency or browser.
+4. The recipient signs in and follows the agent's browser instructions. The
+   session cookie goes directly into a hidden local terminal prompt, never into
+   chat.
+5. The agent checks the session, shows which Zapier account is connected, and
+   waits for confirmation before reading sample account data.
+
+### Copy this to your agent
+
+```text
+Install the private, remote read-only Zapier CLI from:
+https://github.com/VAS-99-99/zapier-cli
+
+Complete these five stages and explain each one in plain language:
+
+1. ACCESS — Confirm that my GitHub account can read the private repository.
+   Prefer `gh auth status` and `gh repo view VAS-99-99/zapier-cli`. If GitHub
+   authentication, Git, or GitHub CLI is missing, guide me through the normal
+   browser sign-in or official installer. Stop if I have not been invited.
+
+2. INSTALL — Detect my OS and CPU. Prefer a matching asset from a private
+   GitHub release if one exists. Otherwise clone or safely update the repository,
+   verify Go 1.26.6 or newer, and build both `./cmd/zapier-pp-cli` and
+   `./cmd/zapier-pp-mcp`. Ask before installing Go or changing system settings.
+   Put the binaries in a user-local bin directory, add it to PATH when needed,
+   and verify `zapier-pp-cli --version`.
+
+3. BROWSER — Run `zapier-pp-cli auth setup --launch`. If there is no supported
+   browser, ask before installing one or opening its official download page.
+   Do not install or recommend a cookie-export extension; built-in browser
+   developer tools are enough.
+
+4. CONNECT — Guide me to copy the complete Cookie request-header value from an
+   authenticated zapier.com request. Never ask me to paste that cookie into
+   chat, never read or echo it, and never place it in command arguments, logs,
+   source files, or shell history. Have me paste it directly into the CLI's
+   hidden local terminal flow printed by `auth setup`. On Windows, use the
+   README's `Read-Host -AsSecureString` recipe instead of a plaintext temporary
+   file. If your terminal cannot accept secret interactive input, tell me
+   exactly which command to run in my own terminal and wait for me to say it
+   completed.
+
+5. VERIFY, THEN STOP — Run `zapier-pp-cli doctor --json`, then
+   `zapier-pp-cli session --agent --no-learn`. Tell me the account identity
+   returned by that live session check and stop for my confirmation. Only after
+   I confirm the account, run this read-only smoke test:
+   `zapier-pp-cli zaps list --limit 3 --agent --no-learn`.
+
+Read and obey this repository's AGENTS.md. Zapier access is strictly read only:
+never create, edit, enable, disable, replay, cancel, delete, publish, rename, or
+otherwise change anything in Zapier. Never add a generic outbound POST,
+webhook delivery, or remote feedback path. Local installation and credential
+storage are allowed.
+```
+
+### Finding the Cookie header
+
+<details>
+<summary>Chrome or Edge</summary>
+
+Sign in to Zapier, open Developer Tools, select **Network**, and reload the
+page. Select an authenticated request to `zapier.com`, open **Headers**, and
+copy the complete value beside **Cookie** under **Request Headers**.
+
+</details>
+
+<details>
+<summary>Firefox</summary>
+
+Sign in to Zapier, open Web Developer Tools, select **Network**, and reload the
+page. Select an authenticated `zapier.com` request, open **Headers**, and copy
+the complete **Cookie** request-header value.
+
+</details>
+
+<details>
+<summary>Safari</summary>
+
+Enable Safari's Develop menu if it is hidden, sign in to Zapier, open **Develop
+→ Show Web Inspector**, select **Network**, and reload the page. Select an
+authenticated `zapier.com` request and copy the complete **Cookie** request
+header.
+
+</details>
+
+The cookie grants access to the signed-in Zapier account. Treat it like a
+password. Do not paste it into chat, screenshots, logs, source control, or a
+cookie-export extension. Logging out of Zapier invalidates the browser session;
+repeat setup with a fresh Cookie header when that happens.
+
+## Manual installation and private distribution
+
+This repository is private and currently has no GitHub release, so the prompt
+above falls back to a local source build. The public Printing Press catalog and
+public latest-release installer are also unavailable for this CLI.
 
 ```bash
 git clone https://github.com/VAS-99-99/zapier-cli.git
@@ -23,52 +124,52 @@ go build -o ./bin/zapier-pp-cli ./cmd/zapier-pp-cli
 go build -o ./bin/zapier-pp-mcp ./cmd/zapier-pp-mcp
 ```
 
-For recipients without a Go toolchain, share an approved prebuilt archive from
-`build/share/` through your private distribution channel. Extract it, make the
-binaries executable on Unix, and add the extracted directory containing the
-binaries to `PATH`:
+For a recipient without Go, the repository owner can privately share the
+matching approved archive from `build/share/`. Extract it, make the binaries
+executable on macOS/Linux, and add their directory to `PATH`:
 
 ```bash
 export PATH="/path/to/extracted-zapier-cli:$PATH"
-zapier-pp-cli --help
+zapier-pp-cli --version
 ```
 
-Share the matching `.mcpb` archive through the same private channel when a
-recipient uses an MCPB-capable host. Otherwise, point the MCP host at the
-locally built `zapier-pp-mcp` binary. Reconnect or restart the host after
-changing its MCP configuration.
+Share the matching `.mcpb` bundle through the same private channel for an
+MCPB-capable host. Otherwise, point the MCP host at the locally built
+`zapier-pp-mcp` binary and reconnect or restart that host.
 
-## Credentials
+## Manual credential setup
 
-Run `zapier-pp-cli auth setup` for the current steps. Sign in at Zapier, copy
-the complete `Cookie` request-header value from an authenticated browser
-request, and treat it like a password. Never put it in chat, logs, source
-control, or a command that displays it.
-
-On macOS/Linux, use a hidden prompt so the cookie does not enter shell history:
+Run `zapier-pp-cli auth setup --launch` for the current instructions. On
+macOS/Linux, the printed flow uses a hidden prompt so the cookie does not enter
+shell history:
 
 ```bash
 printf 'Paste Zapier session cookie: ' >&2; IFS= read -rs ZAPIER_SESSION_COOKIE; printf '\n' >&2
 printf '%s' "$ZAPIER_SESSION_COOKIE" | zapier-pp-cli auth set-token
 unset ZAPIER_SESSION_COOKIE
-zapier-pp-cli doctor
+zapier-pp-cli doctor --json
 ```
 
-On Windows PowerShell, use a temporary, access-restricted file, then run
-`Get-Content -Raw .\private-cookie-file | zapier-pp-cli auth set-token` and
-remove the file with `Remove-Item .\private-cookie-file`.
+On Windows PowerShell, use this hidden prompt instead of the temporary-file
+fallback printed by `auth setup`:
+
+```powershell
+$SecureCookie = Read-Host 'Paste Zapier session cookie' -AsSecureString
+$CookiePtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureCookie)
+try {
+  [Runtime.InteropServices.Marshal]::PtrToStringBSTR($CookiePtr) | zapier-pp-cli auth set-token
+} finally {
+  [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($CookiePtr)
+  Remove-Variable SecureCookie, CookiePtr -ErrorAction SilentlyContinue
+}
+```
+
+This writes no plaintext cookie file, zeroes the temporary unmanaged buffer,
+and clears its PowerShell variables when it finishes.
 
 `auth set-token` stores the cookie in the local credentials file. Do not share
 that file. MCP hosts need the same `ZAPIER_SESSION_COOKIE` value in their
 private host configuration; never commit the host configuration.
-
-## Recipient quick start
-
-1. Receive an authorized source checkout or private archive.
-2. Build or extract both CLI and MCP binaries, then add their directory to `PATH`.
-3. Configure the browser session cookie as above and run `doctor`.
-4. Connect or reconnect the MCP host if needed.
-5. Start with `zapier-pp-cli which "failed runs" --json`.
 
 ## What it can do
 
