@@ -15,8 +15,8 @@ func newSessionPromotedCmd(flags *rootFlags) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:         "session",
-		Short:       "Check whether the saved session cookie is still valid",
-		Long:        "Check whether the saved session cookie is still valid",
+		Short:       "Check the account connected by the saved browser session",
+		Long:        "Read the current Zapier session and report the connected account without changing it.",
 		Example:     "  zapier-pp-cli session",
 		Annotations: map[string]string{"pp:endpoint": "session.check", "pp:method": "GET", "pp:path": "/api/v4/session", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {

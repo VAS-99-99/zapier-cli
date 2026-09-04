@@ -9,7 +9,7 @@ auth:
   type: api_key
   header: "Cookie"
   format: "{token}"
-  instructions: "Sign in at https://zapier.com/app/login, then copy the complete Cookie request-header value from an authenticated Zapier request. Treat the value as a password and set it in ZAPIER_SESSION_COOKIE."
+  instructions: "Run zapier-pp-cli auth browser. It installs a pinned browser helper and managed Chrome for Testing when missing. Sign in in the dedicated window; the CLI privately transfers Zapier-scoped cookies to local credential storage."
   env_vars:
     - ZAPIER_SESSION_COOKIE
 
@@ -20,7 +20,7 @@ resources:
       check:
         method: GET
         path: "/api/v4/session"
-        description: "Check whether the saved session cookie is still valid"
+        description: "Read the current Zapier session and report the connected account without changing it"
         response:
           type: object
 

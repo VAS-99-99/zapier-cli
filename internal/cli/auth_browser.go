@@ -1,0 +1,728 @@
+// Copyright 2026 Vas and contributors. Licensed under Apache-2.0. See LICENSE.
+
+package cli
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/config"
+	"github.com/spf13/cobra"
+)
+
+const (
+	agentBrowserVersion               = "0.36.0"
+	agentBrowserReleaseBaseURL        = "https://github.com/vercel-labs/agent-browser/releases/download/v" + agentBrowserVersion
+	agentBrowserMaxDownloadBytes      = 32 << 20
+	agentBrowserMaxCommandOutputBytes = 8 << 20
+	agentBrowserMaxCookieHeaderBytes  = 64 << 10
+	agentBrowserInstallTimeout        = 5 * time.Minute
+	agentBrowserCommandTimeout        = 30 * time.Second
+	browserConnectTimeout             = 5 * time.Minute
+	agentBrowserSessionPrefix         = "zapier-pp-auth"
+	agentBrowserManagedDirectory      = "browser-tools"
+	agentBrowserPersistentProfile     = "browser-profile"
+)
+
+var zapierAPIPaths = []string{
+	"/api/v4/session",
+	"/api/v4/zaps",
+	"/api/reporting/graphql",
+}
+
+var (
+	browserRuntimeGOOS     = runtime.GOOS
+	browserRuntimeGOARCH   = runtime.GOARCH
+	browserUserConfigDir   = os.UserConfigDir
+	browserUserCacheDir    = os.UserCacheDir
+	browserPollInterval    = 500 * time.Millisecond
+	ensureAgentBrowserTool = ensurePinnedAgentBrowser
+	runAgentBrowserCommand = execAgentBrowserCommand
+	runAgentBrowserOpen    = execAgentBrowserOpen
+	newAgentBrowserSession = makeAgentBrowserSessionName
+	agentBrowserHTTPClient = &http.Client{Timeout: 2 * time.Minute}
+)
+
+type agentBrowserRelease struct {
+	Filename string
+	SHA256   string
+}
+
+type agentBrowserCommandResult struct {
+	Stdout    []byte
+	Stderr    []byte
+	Truncated bool
+}
+
+type agentBrowserCookie struct {
+	Name    string  `json:"name"`
+	Value   string  `json:"value"`
+	Domain  string  `json:"domain"`
+	Path    string  `json:"path"`
+	Expires float64 `json:"expires"`
+}
+
+type agentBrowserEnvelope struct {
+	Success bool            `json:"success"`
+	Data    json.RawMessage `json:"data"`
+}
+
+// pp:data-source local
+func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
+	var noInstall bool
+	cmd := &cobra.Command{
+		Use:   "browser",
+		Short: "Connect through a private browser window without copying a token",
+		Long: "Open a dedicated Chrome profile, wait for you to sign in to Zapier, " +
+			"and save only Zapier-scoped cookies to the CLI's private credential store. " +
+			"Cookie values stay inside this process and are never printed.",
+		Example:     "  zapier-pp-cli auth browser\n  zapier-pp-cli auth browser --timeout 10m",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{"mcp:local-write": "true"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if cliutil.IsAnyHarness() {
+				if flags.asJSON {
+					return printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+						"connected": false,
+						"skipped":   "verification harness",
+					}, flags)
+				}
+				fmt.Fprintln(cmd.ErrOrStderr(), "verification harness: browser connection skipped")
+				return nil
+			}
+
+			if _, ok := agentBrowserReleaseFor(browserRuntimeGOOS, browserRuntimeGOARCH); !ok {
+				return authErr(fmt.Errorf("automatic browser connection is not available on %s/%s", browserRuntimeGOOS, browserRuntimeGOARCH))
+			}
+
+			binaryPath, installed, err := ensureAgentBrowserTool(cmd.Context(), !noInstall)
+			if err != nil {
+				return authErr(fmt.Errorf("preparing the private sign-in browser: %w", err))
+			}
+
+			profilePath, err := agentBrowserProfilePath()
+			if err != nil {
+				return configErr(err)
+			}
+			if err := removeManagedAgentBrowserProfile(profilePath); err != nil {
+				return configErr(fmt.Errorf("clearing a prior private browser profile: %w", err))
+			}
+			if err := os.MkdirAll(profilePath, 0o700); err != nil {
+				return configErr(fmt.Errorf("creating the private browser profile: %w", err))
+			}
+			defer func() { _ = removeManagedAgentBrowserProfile(profilePath) }()
+			browserConfigPath, err := ensureAgentBrowserAuthConfig(profilePath)
+			if err != nil {
+				return configErr(err)
+			}
+
+			sessionName := newAgentBrowserSession()
+			namespaceName := sessionName
+			sessionTouched := false
+			defer func() {
+				if !sessionTouched {
+					return
+				}
+				closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				_, _ = runAgentBrowserCommand(closeCtx, binaryPath, "--config", browserConfigPath, "--namespace", namespaceName, "--session", sessionName, "close", "--json")
+			}()
+
+			openBrowser := func(ctx context.Context) error {
+				sessionTouched = true
+				return runAgentBrowserOpen(ctx, binaryPath,
+					"--config", browserConfigPath,
+					"--namespace", namespaceName,
+					"--session", sessionName,
+					"--profile", profilePath,
+					"open", zapierLoginURL,
+					"--headed",
+					"--no-webmcp",
+					"--json",
+				)
+			}
+
+			openCtx, cancelOpen := context.WithTimeout(cmd.Context(), agentBrowserCommandTimeout)
+			openErr := openBrowser(openCtx)
+			cancelOpen()
+			browserInstalled := false
+			openFailed := openErr != nil
+			if openFailed {
+				if noInstall {
+					return authErr(errors.New("the private Zapier sign-in window could not be opened; rerun without --no-install to install Chrome for Testing if needed"))
+				}
+				fmt.Fprintln(cmd.ErrOrStderr(), "Installing the private sign-in browser. This happens once.")
+				installCtx, cancelInstall := context.WithTimeout(cmd.Context(), agentBrowserInstallTimeout)
+				_, installErr := runAgentBrowserCommand(installCtx, binaryPath, "install")
+				cancelInstall()
+				if installErr != nil {
+					return authErr(errors.New("Chrome for Testing installation failed"))
+				}
+				browserInstalled = true
+
+				openCtx, cancelOpen = context.WithTimeout(cmd.Context(), agentBrowserCommandTimeout)
+				openErr = openBrowser(openCtx)
+				cancelOpen()
+				openFailed = openErr != nil
+			}
+			if openFailed {
+				return authErr(errors.New("the private Zapier sign-in window could not be opened"))
+			}
+
+			fmt.Fprintln(cmd.ErrOrStderr(), "Sign in to Zapier in the new browser window. Waiting for sign-in to finish...")
+			wait := browserConnectTimeout
+			if flags.timeoutExplicit && flags.timeout > 0 {
+				wait = flags.timeout
+			}
+			loginCtx, cancelLogin := context.WithTimeout(cmd.Context(), wait)
+			defer cancelLogin()
+			cookieHeader, cookieCount, err := waitForAgentBrowserLogin(loginCtx, binaryPath, browserConfigPath, sessionName)
+			if err != nil {
+				return authErr(err)
+			}
+
+			cfg, err := config.Load(flags.configPath)
+			if err != nil {
+				return configErr(err)
+			}
+			cfg.AuthHeaderVal = ""
+			if err := cfg.SaveCredential(cookieHeader); err != nil {
+				return configErr(fmt.Errorf("saving browser credential: %w", err))
+			}
+
+			closeCtx, cancelClose := context.WithTimeout(cmd.Context(), 10*time.Second)
+			closeResult, closeErr := runAgentBrowserCommand(closeCtx, binaryPath, "--config", browserConfigPath, "--namespace", namespaceName, "--session", sessionName, "close", "--json")
+			cancelClose()
+			if closeErr != nil || closeResult.Truncated {
+				return authErr(errors.New("the private sign-in browser could not be closed safely; run auth logout before retrying"))
+			}
+			sessionTouched = false
+			if err := removeManagedAgentBrowserProfile(profilePath); err != nil {
+				return configErr(fmt.Errorf("clearing the temporary browser profile: %w", err))
+			}
+
+			out := map[string]any{
+				"credential_saved":       true,
+				"verified":               false,
+				"verification":           "pending account check",
+				"browser":                "Chrome",
+				"browser_tool":           "agent-browser",
+				"browser_tool_version":   agentBrowserVersion,
+				"browser_tool_installed": installed,
+				"browser_installed":      browserInstalled,
+				"cookies_imported":       cookieCount,
+				"config_path":            cfg.Path,
+				"next_step":              "Run only zapier-pp-cli session --agent --no-learn to identify the connected account, then stop for confirmation.",
+			}
+			if !cfg.AgentcookieManagedByExternalStore() {
+				out["credentials_path"] = credentialSavePath(cfg)
+			}
+			if flags.asJSON {
+				return printJSONFiltered(cmd.OutOrStdout(), out, flags)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Saved the private Zapier browser session (%d scoped cookies imported); account verification is still pending.\n", cookieCount)
+			fmt.Fprintf(cmd.OutOrStdout(), "Session cookie saved to %s\n", credentialSavePath(cfg))
+			fmt.Fprintln(cmd.OutOrStdout(), "Next: run only 'zapier-pp-cli session --agent --no-learn' to identify the connected account, then stop for confirmation.")
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&noInstall, "no-install", false, "Do not download the pinned browser tool or Chrome for Testing when missing")
+	return cmd
+}
+
+func agentBrowserReleaseFor(goos, goarch string) (agentBrowserRelease, bool) {
+	assets := map[string]agentBrowserRelease{
+		"darwin/amd64":  {Filename: "agent-browser-darwin-x64", SHA256: "45d9ac061a7d72e61eaff905326e2e19365f4dadb12142ea2f2d76d84689c708"},
+		"darwin/arm64":  {Filename: "agent-browser-darwin-arm64", SHA256: "b2106ab39db0838e7b1772f7f26f760518de56d09053150c56f9dddf15af997d"},
+		"linux/amd64":   {Filename: "agent-browser-linux-x64", SHA256: "56d15181e51e00213f907fcf39707cfc76bfa804ff20f5a9373661c73f96de5e"},
+		"windows/amd64": {Filename: "agent-browser-win32-x64.exe", SHA256: "412ff72737a109e93f5304b0ff76c988fb6f1f451d0fc7e010577922bcc20ff3"},
+	}
+	release, ok := assets[goos+"/"+goarch]
+	return release, ok
+}
+
+func agentBrowserToolPath() (string, error) {
+	base, err := browserUserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("locating the user configuration directory: %w", err)
+	}
+	filename := "agent-browser"
+	if browserRuntimeGOOS == "windows" {
+		filename += ".exe"
+	}
+	return filepath.Join(base, "zapier-pp-cli", agentBrowserManagedDirectory, filename), nil
+}
+
+func agentBrowserProfilePath() (string, error) {
+	if browserRuntimeGOOS == "windows" {
+		base, err := browserUserCacheDir()
+		if err != nil {
+			return "", fmt.Errorf("locating the user cache directory: %w", err)
+		}
+		return filepath.Join(base, "ZapierCLI", agentBrowserPersistentProfile), nil
+	}
+	base, err := browserUserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("locating the user configuration directory: %w", err)
+	}
+	return filepath.Join(base, "zapier-pp-cli", agentBrowserPersistentProfile), nil
+}
+
+func clearManagedAgentBrowserProfile() error {
+	path, err := agentBrowserProfilePath()
+	if err != nil {
+		return err
+	}
+	return removeManagedAgentBrowserProfile(path)
+}
+
+func removeManagedAgentBrowserProfile(path string) error {
+	if filepath.Base(filepath.Clean(path)) != agentBrowserPersistentProfile {
+		return errors.New("refusing to remove an unexpected browser-profile path")
+	}
+	var err error
+	for attempt := 0; attempt < 10; attempt++ {
+		err = os.RemoveAll(path)
+		if err == nil {
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return err
+}
+
+func agentBrowserAuthConfigPath() (string, error) {
+	base, err := browserUserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("locating the user configuration directory: %w", err)
+	}
+	return filepath.Join(base, "zapier-pp-cli", agentBrowserManagedDirectory, "zapier-auth-agent-browser.json"), nil
+}
+
+func ensureAgentBrowserAuthConfig(profilePath string) (string, error) {
+	path, err := agentBrowserAuthConfigPath()
+	if err != nil {
+		return "", err
+	}
+	directory := filepath.Dir(path)
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return "", fmt.Errorf("creating the browser-tool directory: %w", err)
+	}
+	temporary, err := os.CreateTemp(directory, ".zapier-auth-config-*")
+	if err != nil {
+		return "", fmt.Errorf("creating the browser-tool configuration: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	committed := false
+	defer func() {
+		_ = temporary.Close()
+		if !committed {
+			_ = os.Remove(temporaryPath)
+		}
+	}()
+	if err := temporary.Chmod(0o600); err != nil {
+		return "", fmt.Errorf("securing the browser-tool configuration: %w", err)
+	}
+	settings, err := json.Marshal(map[string]any{
+		"headed":   true,
+		"noWebmcp": true,
+		"profile":  profilePath,
+	})
+	if err != nil {
+		return "", fmt.Errorf("encoding the browser-tool configuration: %w", err)
+	}
+	settings = append(settings, '\n')
+	if _, err := temporary.Write(settings); err != nil {
+		return "", fmt.Errorf("writing the browser-tool configuration: %w", err)
+	}
+	if err := temporary.Sync(); err != nil {
+		return "", fmt.Errorf("syncing the browser-tool configuration: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return "", fmt.Errorf("closing the browser-tool configuration: %w", err)
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("replacing the browser-tool configuration: %w", err)
+	}
+	if err := os.Rename(temporaryPath, path); err != nil {
+		return "", fmt.Errorf("installing the browser-tool configuration: %w", err)
+	}
+	committed = true
+	return path, nil
+}
+
+func ensurePinnedAgentBrowser(ctx context.Context, allowInstall bool) (string, bool, error) {
+	release, ok := agentBrowserReleaseFor(browserRuntimeGOOS, browserRuntimeGOARCH)
+	if !ok {
+		return "", false, fmt.Errorf("unsupported platform %s/%s", browserRuntimeGOOS, browserRuntimeGOARCH)
+	}
+	path, err := agentBrowserToolPath()
+	if err != nil {
+		return "", false, err
+	}
+	if matchesPinnedSHA256(path, release.SHA256) {
+		return path, false, nil
+	}
+	if !allowInstall {
+		return "", false, errors.New("the pinned agent-browser tool is missing; rerun without --no-install")
+	}
+	if err := installPinnedAgentBrowser(ctx, path, release); err != nil {
+		return "", false, err
+	}
+	return path, true, nil
+}
+
+func installPinnedAgentBrowser(ctx context.Context, destination string, release agentBrowserRelease) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, agentBrowserReleaseBaseURL+"/"+release.Filename, nil)
+	if err != nil {
+		return errors.New("building the agent-browser download request failed")
+	}
+	response, err := agentBrowserHTTPClient.Do(request)
+	if err != nil {
+		return errors.New("downloading the pinned agent-browser release failed")
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("downloading the pinned agent-browser release returned HTTP %d", response.StatusCode)
+	}
+	payload, err := io.ReadAll(io.LimitReader(response.Body, agentBrowserMaxDownloadBytes+1))
+	if err != nil {
+		return errors.New("reading the pinned agent-browser release failed")
+	}
+	if len(payload) == 0 || len(payload) > agentBrowserMaxDownloadBytes {
+		return errors.New("the pinned agent-browser release had an invalid size")
+	}
+	sum := sha256.Sum256(payload)
+	if !strings.EqualFold(hex.EncodeToString(sum[:]), release.SHA256) {
+		return errors.New("the pinned agent-browser release failed SHA-256 verification")
+	}
+
+	directory := filepath.Dir(destination)
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return fmt.Errorf("creating the browser-tool directory: %w", err)
+	}
+	temporary, err := os.CreateTemp(directory, ".agent-browser-*")
+	if err != nil {
+		return fmt.Errorf("creating the browser-tool staging file: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	committed := false
+	defer func() {
+		_ = temporary.Close()
+		if !committed {
+			_ = os.Remove(temporaryPath)
+		}
+	}()
+	if err := temporary.Chmod(0o700); err != nil {
+		return fmt.Errorf("securing the browser-tool staging file: %w", err)
+	}
+	if _, err := temporary.Write(payload); err != nil {
+		return fmt.Errorf("writing the browser-tool staging file: %w", err)
+	}
+	if err := temporary.Sync(); err != nil {
+		return fmt.Errorf("syncing the browser-tool staging file: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return fmt.Errorf("closing the browser-tool staging file: %w", err)
+	}
+	if err := os.Remove(destination); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("replacing the browser tool: %w", err)
+	}
+	if err := os.Rename(temporaryPath, destination); err != nil {
+		return fmt.Errorf("installing the browser tool: %w", err)
+	}
+	committed = true
+	return nil
+}
+
+func matchesPinnedSHA256(path, expected string) bool {
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, io.LimitReader(file, agentBrowserMaxDownloadBytes+1)); err != nil {
+		return false
+	}
+	info, err := file.Stat()
+	if err != nil || info.Size() <= 0 || info.Size() > agentBrowserMaxDownloadBytes {
+		return false
+	}
+	return strings.EqualFold(hex.EncodeToString(hash.Sum(nil)), expected)
+}
+
+func makeAgentBrowserSessionName() string {
+	var suffix [6]byte
+	if _, err := rand.Read(suffix[:]); err == nil {
+		return fmt.Sprintf("%s-%d-%x", agentBrowserSessionPrefix, os.Getpid(), suffix)
+	}
+	return fmt.Sprintf("%s-%d-%d", agentBrowserSessionPrefix, os.Getpid(), time.Now().UnixNano())
+}
+
+func execAgentBrowserCommand(ctx context.Context, binary string, args ...string) (agentBrowserCommandResult, error) {
+	var stdout, stderr limitedCommandCapture
+	command := exec.CommandContext(ctx, binary, args...) // #nosec G204 -- binary is the hash-verified managed tool and args are fixed by this package.
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	command.Env = privateAgentBrowserEnvironment()
+	err := command.Run()
+	return agentBrowserCommandResult{
+		Stdout:    stdout.Bytes(),
+		Stderr:    stderr.Bytes(),
+		Truncated: stdout.truncated || stderr.truncated,
+	}, err
+}
+
+// execAgentBrowserOpen intentionally gives the browser launcher direct null
+// handles instead of Go-managed output pipes. The launcher starts a persistent
+// daemon/browser process which may inherit its handles; pipe capture would make
+// cmd.Wait block until that long-lived child exits. The open command contains no
+// credential output, and all cookie-bearing commands still use bounded in-memory
+// capture through execAgentBrowserCommand.
+func execAgentBrowserOpen(ctx context.Context, binary string, args ...string) error {
+	command := exec.CommandContext(ctx, binary, args...) // #nosec G204 -- binary is the hash-verified managed tool and args are fixed by this package.
+	// Leave stdout/stderr nil so os/exec connects them directly to os.DevNull.
+	// Assigning io.Discard would make os/exec create copy pipes and recreate the
+	// inherited-handle hang this separate runner exists to prevent.
+	controlled := []string{
+		"AGENT_BROWSER_HEADED=true",
+		"AGENT_BROWSER_NO_WEBMCP=true",
+	}
+	if profile := commandArgumentValue(args, "--profile"); profile != "" {
+		controlled = append(controlled, "AGENT_BROWSER_PROFILE="+profile)
+	}
+	if session := commandArgumentValue(args, "--session"); session != "" {
+		controlled = append(controlled, "AGENT_BROWSER_SESSION="+session)
+	}
+	if namespace := commandArgumentValue(args, "--namespace"); namespace != "" {
+		controlled = append(controlled, "AGENT_BROWSER_NAMESPACE="+namespace)
+	}
+	command.Env = privateAgentBrowserEnvironment(controlled...)
+	return command.Run()
+}
+
+func privateAgentBrowserEnvironment(controlled ...string) []string {
+	environment := make([]string, 0, len(os.Environ())+len(controlled)+1)
+	for _, entry := range os.Environ() {
+		name, _, _ := strings.Cut(entry, "=")
+		if strings.HasPrefix(strings.ToUpper(name), "AGENT_BROWSER_") {
+			continue
+		}
+		environment = append(environment, entry)
+	}
+	environment = append(environment, "NO_COLOR=1")
+	return append(environment, controlled...)
+}
+
+func commandArgumentValue(args []string, name string) string {
+	for index := 0; index+1 < len(args); index++ {
+		if args[index] == name {
+			return args[index+1]
+		}
+	}
+	return ""
+}
+
+type limitedCommandCapture struct {
+	buffer    bytes.Buffer
+	truncated bool
+}
+
+func (c *limitedCommandCapture) Write(data []byte) (int, error) {
+	written := len(data)
+	remaining := agentBrowserMaxCommandOutputBytes - c.buffer.Len()
+	if remaining <= 0 {
+		c.truncated = true
+		return written, nil
+	}
+	if len(data) > remaining {
+		_, _ = c.buffer.Write(data[:remaining])
+		c.truncated = true
+		return written, nil
+	}
+	_, _ = c.buffer.Write(data)
+	return written, nil
+}
+
+func (c *limitedCommandCapture) Bytes() []byte {
+	return append([]byte(nil), c.buffer.Bytes()...)
+}
+
+func waitForAgentBrowserLogin(ctx context.Context, binaryPath, configPath, sessionName string) (string, int, error) {
+	ticker := time.NewTicker(browserPollInterval)
+	defer ticker.Stop()
+	for {
+		currentURL, err := agentBrowserCurrentURL(ctx, binaryPath, configPath, sessionName)
+		if err == nil && isSignedInZapierURL(currentURL) {
+			cookies, cookieErr := agentBrowserCookies(ctx, binaryPath, configPath, sessionName)
+			if cookieErr == nil {
+				header, count := zapierCookieHeader(cookies)
+				if count > 0 {
+					return header, count, nil
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return "", 0, errors.New("timed out waiting for Zapier sign-in; run auth browser again to continue")
+		case <-ticker.C:
+		}
+	}
+}
+
+func agentBrowserCurrentURL(ctx context.Context, binaryPath, configPath, sessionName string) (string, error) {
+	result, err := runAgentBrowserCommand(ctx, binaryPath, "--config", configPath, "--namespace", sessionName, "--session", sessionName, "get", "url", "--json")
+	if err != nil || result.Truncated {
+		return "", errors.New("browser status unavailable")
+	}
+	var data struct {
+		URL string `json:"url"`
+	}
+	if err := decodeAgentBrowserData(result.Stdout, &data); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(data.URL) == "" {
+		return "", errors.New("browser did not return its current URL")
+	}
+	return data.URL, nil
+}
+
+func agentBrowserCookies(ctx context.Context, binaryPath, configPath, sessionName string) ([]agentBrowserCookie, error) {
+	result, err := runAgentBrowserCommand(ctx, binaryPath, "--config", configPath, "--namespace", sessionName, "--session", sessionName, "cookies", "--json")
+	if err != nil || result.Truncated {
+		return nil, errors.New("browser cookies unavailable")
+	}
+	var data struct {
+		Cookies []agentBrowserCookie `json:"cookies"`
+	}
+	if err := decodeAgentBrowserData(result.Stdout, &data); err != nil {
+		return nil, err
+	}
+	return data.Cookies, nil
+}
+
+func decodeAgentBrowserData(payload []byte, destination any) error {
+	var envelope agentBrowserEnvelope
+	if err := json.Unmarshal(bytes.TrimSpace(payload), &envelope); err != nil || !envelope.Success || len(envelope.Data) == 0 {
+		return errors.New("browser tool returned an invalid response")
+	}
+	if err := json.Unmarshal(envelope.Data, destination); err != nil {
+		return errors.New("browser tool returned invalid data")
+	}
+	return nil
+}
+
+func isSignedInZapierURL(rawURL string) bool {
+	parsed, err := urlParseHTTPS(rawURL)
+	if err != nil || !isZapierCookieDomain(parsed.Hostname()) {
+		return false
+	}
+	path := strings.ToLower(strings.TrimSpace(parsed.Path))
+	for _, blocked := range []string{"/login", "/sign-in", "/signin", "/sign-up", "/signup", "/oauth"} {
+		if strings.Contains(path, blocked) {
+			return false
+		}
+	}
+	return path != "" && path != "/"
+}
+
+func urlParseHTTPS(rawURL string) (*url.URL, error) {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" {
+		return nil, errors.New("invalid HTTPS URL")
+	}
+	return parsed, nil
+}
+
+func zapierCookieHeader(cookies []agentBrowserCookie) (string, int) {
+	now := float64(time.Now().Unix())
+	filtered := make([]agentBrowserCookie, 0, len(cookies))
+	for _, cookie := range cookies {
+		if !isZapierRequestCookieDomain(cookie.Domain) || !cookiePathMatchesZapierAPI(cookie.Path) || strings.TrimSpace(cookie.Name) == "" || strings.TrimSpace(cookie.Value) == "" {
+			continue
+		}
+		if cookie.Expires > 0 && cookie.Expires <= now {
+			continue
+		}
+		candidate := &http.Cookie{Name: cookie.Name, Value: cookie.Value}
+		if candidate.Valid() != nil || candidate.String() == "" {
+			continue
+		}
+		filtered = append(filtered, cookie)
+	}
+	sort.SliceStable(filtered, func(i, j int) bool {
+		if len(filtered[i].Path) != len(filtered[j].Path) {
+			return len(filtered[i].Path) > len(filtered[j].Path)
+		}
+		if filtered[i].Name != filtered[j].Name {
+			return filtered[i].Name < filtered[j].Name
+		}
+		return filtered[i].Domain < filtered[j].Domain
+	})
+	pairs := make([]string, 0, len(filtered))
+	totalBytes := 0
+	for _, cookie := range filtered {
+		pair := (&http.Cookie{Name: cookie.Name, Value: cookie.Value}).String()
+		added := len(pair)
+		if len(pairs) > 0 {
+			added += 2
+		}
+		if totalBytes+added > agentBrowserMaxCookieHeaderBytes {
+			return "", 0
+		}
+		pairs = append(pairs, pair)
+		totalBytes += added
+	}
+	return strings.Join(pairs, "; "), len(pairs)
+}
+
+func isZapierCookieDomain(domain string) bool {
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	domain = strings.TrimPrefix(domain, ".")
+	domain = strings.TrimSuffix(domain, ".")
+	return domain == "zapier.com" || strings.HasSuffix(domain, ".zapier.com")
+}
+
+func isZapierRequestCookieDomain(domain string) bool {
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	domain = strings.TrimPrefix(domain, ".")
+	domain = strings.TrimSuffix(domain, ".")
+	return domain == "zapier.com"
+}
+
+func cookiePathMatchesZapierAPI(cookiePath string) bool {
+	cookiePath = strings.TrimSpace(cookiePath)
+	if cookiePath == "" {
+		cookiePath = "/"
+	}
+	if !strings.HasPrefix(cookiePath, "/") {
+		return false
+	}
+	for _, requestPath := range zapierAPIPaths {
+		if requestPath == cookiePath {
+			return true
+		}
+		if strings.HasPrefix(requestPath, cookiePath) && (strings.HasSuffix(cookiePath, "/") || requestPath[len(cookiePath)] == '/') {
+			return true
+		}
+	}
+	return false
+}

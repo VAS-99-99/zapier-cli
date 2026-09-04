@@ -26,12 +26,24 @@ stdout or a local file only, and feedback must remain on this machine.
 
 ## Local Operating Contract
 
-Start by asking the generated CLI for current runtime truth:
+For an established connection, start by asking the generated CLI for current
+runtime truth:
 
 ```bash
 zapier-pp-cli doctor --json
 zapier-pp-cli agent-context --pretty
 ```
+
+Normal-user installation must use the checksummed private GitHub Release via
+`install.sh` or `install.ps1`. Keep Go builds in contributor workflows. The CLI
+owns its pinned browser helper and browser; users do not install or operate Go,
+Node.js, npm, Playwright, agent-browser, a browser extension, or a cookie export
+tool.
+
+Immediately after `auth browser`, the account-safety checkpoint overrides that
+order: run only `zapier-pp-cli session --agent --no-learn`, show the exact
+account identity, and stop for user confirmation. Do not run `doctor` or any
+other live read until the user confirms that account.
 
 Use runtime discovery instead of relying on a copied command list:
 
@@ -46,14 +58,10 @@ Add `--agent` to command invocations for JSON, compact output, non-interactive d
 zapier-pp-cli <command> --agent
 ```
 
-Before running an unfamiliar command that may mutate remote state, inspect its help and prefer a dry run:
-
-```bash
-zapier-pp-cli <command> --help
-zapier-pp-cli <command> --dry-run --agent
-```
-
-When a command requires confirmation, pass `--yes` explicitly only after the target, arguments, and side effects are clear. `--agent` does not imply `--yes`.
+This product has no authorized remote mutation. If command help, runtime
+discovery, or behavior appears capable of changing Zapier state, do not run the
+command. Treat it as a product defect and report it. A dry run or confirmation
+flag cannot authorize that command.
 
 ## Novel Command Data Sources
 
@@ -99,7 +107,10 @@ resolved credential bytes. Do not edit generator-owned `internal/platform`
 packages; a reprint refreshes those files while retaining the downstream
 registration file.
 
-For install, auth, examples, and longer product guidance, read `README.md` and `SKILL.md`. This file intentionally stays small so repo-local agents get invariant local guidance without duplicating the generated docs.
+For private-release install, auth, MCP setup, reconnect, uninstall, examples,
+and longer product guidance, read `README.md` and `SKILL.md`. This file stays
+small so repo-local agents get invariant local guidance without duplicating the
+generated docs.
 
 ## Release Ledger
 

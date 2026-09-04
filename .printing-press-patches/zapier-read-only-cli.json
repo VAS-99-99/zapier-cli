@@ -4,13 +4,16 @@
   "applied_at": "2026-09-04",
   "base_run_id": "20260903-213259-ecc098e3",
   "base_printing_press_version": "4.31.6",
-  "summary": "Preserve read-only Zap and run inspection, exact GraphQL guards, live provenance, session-cookie onboarding, deterministic nested output, and curated command discovery.",
+  "summary": "Preserve read-only Zap and run inspection, exact GraphQL guards, live provenance, private agent-browser sign-in, deterministic nested output, and curated command discovery.",
   "reason": "These private-CLI behaviors depend on generated-tree customizations that must be rechecked after every reprint, while remote Zapier mutations remain forbidden.",
   "files": [
     "AGENTS.md",
     "spec.yaml",
     "internal/cli/agent_context.go",
     "internal/cli/auth.go",
+    "internal/cli/auth_browser.go",
+    "internal/cli/auth_browser_test.go",
+    "internal/cli/auth_zapier_test.go",
     "internal/cli/deliver.go",
     "internal/cli/diagnose.go",
     "internal/cli/doctor.go",
@@ -21,15 +24,20 @@
     "internal/cli/runs.go",
     "internal/cli/zaps.go",
     "internal/client/client.go",
+    "internal/config/config.go",
     "internal/mcp/tools.go"
   ],
   "call_sites": [
     "Remote Read-Only Product Invariant",
     "diagnoseAnnotations(",
     "validateReportingGraphQL(",
+    "newAuthBrowserCmd(",
+    "agentBrowserReleaseFor(",
+    "waitForAgentBrowserLogin(",
+    "removeManagedAgentBrowserProfile(",
     "remote webhook delivery is disabled",
     "Remote feedback is permanently disabled",
     "printOutputWithFlagsMeta("
   ],
-  "validated_outcome": "publish validate passed; focused read-only, auth, output, and diagnosis tests passed; live dogfood passed 72/72 with no hollow novel-feature coverage"
+  "validated_outcome": "Full Go tests, focused race tests, vet, and Windows amd64 cross-build passed; live browser sign-in and refreshed Phase 5 acceptance remain pending"
 }

@@ -1,0 +1,26 @@
+{
+  "schema_version": 2,
+  "id": "zapier-prebuilt-private-release",
+  "applied_at": "2026-09-04",
+  "base_run_id": "20260903-213259-ecc098e3",
+  "base_printing_press_version": "4.31.6",
+  "summary": "Ship checksummed private GitHub Release binaries and no-Go user-local installers for the supported platforms.",
+  "reason": "Normal users need a one-prompt installation path that never falls back to installing Go or manually handling a Zapier session cookie.",
+  "files": [
+    ".github/workflows/release.yml",
+    ".gitignore",
+    "install.ps1",
+    "install.sh",
+    "scripts/package-release.sh",
+    "scripts/tests/install_ps1_test.sh",
+    "scripts/tests/install_sh_test.sh",
+    "scripts/tests/onboarding_contract_test.sh",
+    "scripts/verify-release.sh"
+  ],
+  "call_sites": [
+    "Release prebuilt binaries",
+    "contains development version",
+    "no-Go, no-cookie-copy, session-first onboarding contract"
+  ],
+  "validated_outcome": "Four deterministic target archives passed checksum, format, embedded-version, native CLI, native MCP, installer, onboarding, shellcheck, and actionlint verification."
+}

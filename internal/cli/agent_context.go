@@ -118,19 +118,8 @@ reading source. Schema is versioned via schema_version.`,
 }
 
 func buildAgentContext(rootCmd *cobra.Command) agentContext {
-	envVars := []agentContextAuthEnvVar{
-		{
-			Name:        "ZAPIER_SESSION_COOKIE",
-			Kind:        "per_call",
-			Required:    true,
-			Sensitive:   true,
-			Description: "Set to the complete Cookie request-header value from an authenticated Zapier browser session.",
-		},
-	}
-	authMode := "api_key"
-	if authMode == "" {
-		authMode = "none"
-	}
+	envVars := []agentContextAuthEnvVar{}
+	authMode := "browser_session"
 	profiles := ListProfileNames()
 	if profiles == nil {
 		profiles = []string{}

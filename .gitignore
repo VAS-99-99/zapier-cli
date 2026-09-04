@@ -1,8 +1,12 @@
 /zapier-pp-cli
+/zapier-cli
+/dist/
 build/
 *.db
 
 # local scratch
 progress.jsonl
 dogfood-results.json
+apify-actor-audit-report.json
+workflow-verify-report.json
 *.log

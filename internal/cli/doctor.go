@@ -217,7 +217,7 @@ func newDoctorCmd(flags *rootFlags) *cobra.Command {
 					configured, authSource := doctorAuthConfiguredState(cfg)
 					if !configured {
 						report["auth"] = "not configured"
-						report["auth_hint"] = "Run 'zapier-pp-cli auth setup' for safe session-cookie instructions."
+						report["auth_hint"] = "Run 'zapier-pp-cli auth browser' to connect in a visible browser window."
 					} else {
 						authConfigured = true
 						report["auth"] = "configured"
@@ -316,9 +316,9 @@ func newDoctorCmd(flags *rootFlags) *cobra.Command {
 					} else {
 						suggestion := suggestReadCommand(cmd.Root())
 						if suggestion != "" {
-							report["credentials"] = fmt.Sprintf("present, not verified. Run `%s %s` to confirm the session cookie works end-to-end.", "zapier-pp-cli", suggestion)
+							report["credentials"] = fmt.Sprintf("present, not verified. Run `%s %s` to confirm the saved browser session works end-to-end.", "zapier-pp-cli", suggestion)
 						} else {
-							report["credentials"] = "present, not verified. Run any read command to confirm the session cookie works end-to-end."
+							report["credentials"] = "present, not verified. Run a documented read command to confirm the saved browser session works end-to-end."
 						}
 					}
 				}
@@ -519,7 +519,7 @@ func collectCredentialsLocationReport(report map[string]any, cfg *config.Config)
 	if cfg == nil {
 		return
 	}
-	credentialRemediation := "run auth set-token or auth logout"
+	credentialRemediation := "run auth browser or auth logout"
 	if cfg.CredentialSource != "" {
 		report["credentials_location"] = cfg.CredentialSource
 	} else {

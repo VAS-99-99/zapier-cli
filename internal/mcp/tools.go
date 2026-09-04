@@ -40,7 +40,7 @@ func RegisterTools(s *server.MCPServer) {
 	installFreshTenantGate(s)
 	s.AddTool(
 		mcplib.NewTool("session_check",
-			mcplib.WithDescription("Check whether the saved session cookie is still valid."),
+			mcplib.WithDescription("Read the current Zapier session and report the connected account without changing it."),
 			mcplib.WithReadOnlyHintAnnotation(true),
 			mcplib.WithDestructiveHintAnnotation(false),
 			mcplib.WithOpenWorldHintAnnotation(true),
@@ -304,18 +304,16 @@ func makeAPIHandler(method, pathTemplate string, readOnly bool, binaryResponse b
 			case strings.Contains(msg, "HTTP 400") && cliutil.LooksLikeAuthError(msg):
 				return mcpToolError("authentication error: " + cliutil.SanitizeErrorBody(msg) +
 					"\nhint: the API rejected the request — this usually means auth is missing or invalid." +
-					"\n      Run 'zapier-pp-cli auth setup' for safe session-cookie instructions." +
-					"\n      Run 'zapier-pp-cli doctor' to check auth status."), nil
+					"\n      Run 'zapier-pp-cli auth browser' to reconnect in a visible browser." +
+					"\n      Then run only 'zapier-pp-cli session --agent --no-learn' and confirm the account."), nil
 			case strings.Contains(msg, "HTTP 401"):
 				return mcpToolError("authentication failed: " + cliutil.SanitizeErrorBody(msg) +
-					"\nhint: check your session cookie." +
-					"\n      Run 'zapier-pp-cli auth setup' for safe session-cookie instructions." +
-					"\n      Run 'zapier-pp-cli doctor' to check auth status."), nil
+					"\nhint: run 'zapier-pp-cli auth browser' to reconnect in a visible browser." +
+					"\n      Then run only 'zapier-pp-cli session --agent --no-learn' and confirm the account."), nil
 			case strings.Contains(msg, "HTTP 403"):
 				return mcpToolError("permission denied: " + cliutil.SanitizeErrorBody(msg) +
-					"\nhint: your credentials are valid but lack access to this resource. Check that they have the required permissions and match the API's expected auth scheme." +
-					"\n      Run 'zapier-pp-cli auth setup' for safe session-cookie instructions." +
-					"\n      Run 'zapier-pp-cli doctor' to check auth status."), nil
+					"\nhint: your credentials are valid but lack access to this resource. Run 'zapier-pp-cli auth browser' to connect the intended account again." +
+					"\n      Then run only 'zapier-pp-cli session --agent --no-learn' and confirm the account."), nil
 			case strings.Contains(msg, "HTTP 404"):
 				if method == "DELETE" {
 					return mcpToolTextWithPlatform("already deleted (no-op)", platformSession), nil
@@ -749,16 +747,9 @@ func handleContext(_ context.Context, _ mcplib.CallToolRequest) (*mcplib.CallToo
 		// CLI agent surfaces cannot drift.
 		"learn_protocol": learn.RecallFirstProtocol,
 		"auth": map[string]any{
-			"type": "api_key",
-			"env_vars": []map[string]any{
-				{
-					"name":        "ZAPIER_SESSION_COOKIE",
-					"kind":        "per_call",
-					"required":    true,
-					"sensitive":   true,
-					"description": "Set to the complete Cookie request-header value from an authenticated Zapier browser session.",
-				},
-			},
+			"type":          "browser_session",
+			"setup_command": "zapier-pp-cli auth browser",
+			"env_vars":      []map[string]any{},
 		},
 		"resources": []map[string]any{
 			{

@@ -1,0 +1,111 @@
+name: Release prebuilt binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (must start with v)"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark a manually dispatched release as a prerelease"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, verify, and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Resolve release settings
+        id: release
+        shell: bash
+        env:
+          REQUESTED_TAG: ${{ github.event.inputs.tag }}
+          REQUESTED_PRERELEASE: ${{ github.event.inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            tag="${REQUESTED_TAG}"
+            prerelease="${REQUESTED_PRERELEASE}"
+          else
+            tag="${GITHUB_REF_NAME}"
+            prerelease="false"
+          fi
+          if [[ ! "$tag" =~ ^v[0-9A-Za-z][0-9A-Za-z._-]*$ ]]; then
+            echo "invalid release tag: $tag" >&2
+            exit 2
+          fi
+          if tagged_sha=$(git rev-parse --verify "refs/tags/${tag}^{commit}" 2>/dev/null); then
+            if [[ "$tagged_sha" != "$GITHUB_SHA" ]]; then
+              echo "tag $tag points to $tagged_sha, but this workflow checked out $GITHUB_SHA" >&2
+              exit 1
+            fi
+          fi
+          printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
+          printf 'prerelease=%s\n' "$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Test release source and installers
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v pwsh >/dev/null 2>&1
+          go test ./...
+          go vet ./...
+          ./scripts/tests/install_sh_test.sh
+          ./scripts/tests/install_ps1_test.sh
+          ./scripts/tests/onboarding_contract_test.sh
+
+      - name: Build deterministic archives
+        run: ./scripts/package-release.sh "${{ steps.release.outputs.tag }}" dist
+
+      - name: Verify archives and version stamps
+        run: ./scripts/verify-release.sh dist "${{ steps.release.outputs.tag }}"
+
+      - name: Publish private GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.release.outputs.tag }}"
+          assets=(
+            dist/zapier-cli_windows_x86_64.zip
+            dist/zapier-cli_darwin_arm64.tar.gz
+            dist/zapier-cli_darwin_x86_64.tar.gz
+            dist/zapier-cli_linux_x86_64.tar.gz
+            dist/SHA256SUMS
+          )
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release $tag already exists; refusing to replace published binaries or checksums" >&2
+            exit 1
+          fi
+          args=(release create "$tag" "${assets[@]}" --target "$GITHUB_SHA" --title "Zapier CLI $tag" --generate-notes)
+          if [[ "${{ steps.release.outputs.prerelease }}" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh "${args[@]}"

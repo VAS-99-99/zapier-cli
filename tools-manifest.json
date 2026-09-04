@@ -1,7 +1,7 @@
 {
   "api_name": "zapier",
   "base_url": "https://zapier.com",
-  "description": "Read-only CLI for your Zapier account: list zaps, check run history, diagnose failures.",
+  "description": "Strictly read-only Zapier inspection: verify the connected account, list and search Zaps, inspect historical runs, and diagnose failed steps.",
   "mcp_ready": "full",
   "http_transport": "standard",
   "auth": {
@@ -15,9 +15,10 @@
       {
         "name": "ZAPIER_SESSION_COOKIE",
         "kind": "per_call",
-        "required": true,
+        "required": false,
         "sensitive": true,
-        "inferred": true
+        "inferred": true,
+        "description": "Expert-only environment override. Normal setup uses zapier-pp-cli auth browser and protected local credential storage; users never copy or paste this value."
       }
     ]
   },
@@ -25,7 +26,7 @@
   "tools": [
     {
       "name": "session_check",
-      "description": "Check whether the saved session cookie is still valid.",
+      "description": "Read the current Zapier session to verify which account is connected; makes no remote change.",
       "method": "GET",
       "path": "/api/v4/session",
       "params": []

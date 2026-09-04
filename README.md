@@ -1,258 +1,233 @@
-# Zapier CLI
+# Zapier read-only CLI
 
-`zapier-pp-cli` is a private, remote read-only tool for inspecting a connected
-Zapier account: session health, Zaps, run history, run detail, and failed-step
-diagnosis. It never changes a Zap or runs a Zapier mutation.
+`zapier-pp-cli` lets Claude, Codex, and people inspect a connected Zapier
+account. It checks the account session, lists and searches Zaps, opens historical
+runs, and pinpoints failed steps. It cannot change anything in Zapier.
 
-The remote boundary also disables webhook output delivery and remote feedback.
-`--deliver` supports stdout or a local file only; feedback stays on the local
-machine.
+Normal users do not need Go, Node.js, npm, Playwright, `agent-browser`, a browser
+extension, or a Zapier developer token. The release installers provide the CLI
+and MCP binaries. `auth browser` manages its pinned browser helper and browser
+inside the CLI.
 
-## Five-step setup for a new user
+## Give this to your agent
 
-No Zapier developer key or browser extension is required. This CLI connects to
-the Zapier account already signed in through a browser. It does not have a
-one-click OAuth flow: the user privately copies one authenticated request's
-`Cookie` header into the CLI's hidden local prompt.
-
-1. The repository owner invites the recipient's GitHub account to
-   [`VAS-99-99/zapier-cli`](https://github.com/VAS-99-99/zapier-cli).
-2. The recipient copies the prompt below into a coding agent with terminal
-   access.
-3. The agent installs the CLI and opens Zapier's login page. It asks before
-   installing any missing system dependency or browser.
-4. The recipient signs in and follows the agent's browser instructions. The
-   session cookie goes directly into a hidden local terminal prompt, never into
-   chat.
-5. The agent checks the session, shows which Zapier account is connected, and
-   waits for confirmation before reading sample account data.
-
-### Copy this to your agent
+Copy this whole block into Claude or Codex:
 
 ```text
-Install the private, remote read-only Zapier CLI from:
-https://github.com/VAS-99-99/zapier-cli
+Install the private Zapier read-only CLI from
+https://github.com/VAS-99-99/zapier-cli and connect my Zapier account.
 
-Complete these five stages and explain each one in plain language:
+Complete these five stages in order:
 
-1. ACCESS — Confirm that my GitHub account can read the private repository.
-   Prefer `gh auth status` and `gh repo view VAS-99-99/zapier-cli`. If GitHub
-   authentication, Git, or GitHub CLI is missing, guide me through the normal
-   browser sign-in or official installer. Stop if I have not been invited.
+1. ACCESS. Make sure the official GitHub CLI is installed. Check
+   `gh auth status` and confirm my GitHub account can read
+   `VAS-99-99/zapier-cli`. Guide me through `gh auth login` in the browser if
+   needed. Stop if my account has not been invited. Clone the repository with
+   `gh repo clone VAS-99-99/zapier-cli`, or safely update an existing clone.
 
-2. INSTALL — Detect my OS and CPU. Prefer a matching asset from a private
-   GitHub release if one exists. Otherwise clone or safely update the repository,
-   verify Go 1.26.6 or newer, and build both `./cmd/zapier-pp-cli` and
-   `./cmd/zapier-pp-mcp`. Ask before installing Go or changing system settings.
-   Put the binaries in a user-local bin directory, add it to PATH when needed,
-   and verify `zapier-pp-cli --version`.
+2. INSTALL. Detect my OS and CPU, then run the repository installer. On macOS
+   or Linux run `./install.sh`. On Windows PowerShell run
+   `powershell -ExecutionPolicy Bypass -File .\install.ps1`. The installer must
+   download the matching private GitHub Release, verify SHA-256, and install
+   `zapier-pp-cli` and `zapier-pp-mcp`. Normal setup must not install Go,
+   Node.js, npm, Playwright, agent-browser, or a browser extension. Verify
+   `zapier-pp-cli --version`, then run the exact MCP registration command
+   printed by the installer for this host.
 
-3. BROWSER — Run `zapier-pp-cli auth setup --launch`. If there is no supported
-   browser, ask before installing one or opening its official download page.
-   Do not install or recommend a cookie-export extension; built-in browser
-   developer tools are enough.
+3. CONNECT. Run `zapier-pp-cli auth browser`. Let the CLI manage its pinned
+   browser helper and browser. Have me sign in to Zapier in the visible window,
+   then let the command save the Zapier-scoped session in protected local
+   storage and close the window. Never ask me to find, copy, paste, reveal, or
+   transmit a cookie or token. Never put one in chat, command arguments, logs,
+   screenshots, source control, or an MCP configuration, and never manually
+   copy or save one in an arbitrary file. Protected storage managed by the CLI
+   is the only supported destination.
 
-4. CONNECT — Guide me to copy the complete Cookie request-header value from an
-   authenticated zapier.com request. Never ask me to paste that cookie into
-   chat, never read or echo it, and never place it in command arguments, logs,
-   source files, or shell history. Have me paste it directly into the CLI's
-   hidden local terminal flow printed by `auth setup`. On Windows, use the
-   README's `Read-Host -AsSecureString` recipe instead of a plaintext temporary
-   file. If your terminal cannot accept secret interactive input, tell me
-   exactly which command to run in my own terminal and wait for me to say it
-   completed.
+4. VERIFY, THEN STOP. The first live Zapier call after `auth browser` must be
+   only `zapier-pp-cli session --agent --no-learn`. Show me the exact connected
+   account identity and stop. Do not run `doctor`, list Zaps, or read any other
+   account data until I confirm that this is the correct account.
 
-5. VERIFY, THEN STOP — Run `zapier-pp-cli doctor --json`, then
-   `zapier-pp-cli session --agent --no-learn`. Tell me the account identity
-   returned by that live session check and stop for my confirmation. Only after
-   I confirm the account, run this read-only smoke test:
-   `zapier-pp-cli zaps list --limit 3 --agent --no-learn`.
+5. USE AFTER CONFIRMATION. After I confirm the account, run
+   `zapier-pp-cli doctor --json` and the bounded read-only smoke test
+   `zapier-pp-cli zaps list --limit 3 --agent --no-learn`. Then use only the
+   documented read commands.
 
-Read and obey this repository's AGENTS.md. Zapier access is strictly read only:
-never create, edit, enable, disable, replay, cancel, delete, publish, rename, or
-otherwise change anything in Zapier. Never add a generic outbound POST,
-webhook delivery, or remote feedback path. Local installation and credential
-storage are allowed.
+Read and obey AGENTS.md. This product is remotely read only. Never create,
+edit, enable, disable, rename, publish, replay, cancel, or delete anything in
+Zapier. Never add a generic outbound POST, webhook delivery, remote feedback,
+or a general-purpose browser MCP. Local installation, protected credential
+storage, local files, and the local learning store are allowed.
 ```
 
-### Finding the Cookie header
+## Supported systems
 
-<details>
-<summary>Chrome or Edge</summary>
+The private GitHub Release contains these checksummed archives:
 
-Sign in to Zapier, open Developer Tools, select **Network**, and reload the
-page. Select an authenticated request to `zapier.com`, open **Headers**, and
-copy the complete value beside **Cookie** under **Request Headers**.
+| System | Release asset |
+| --- | --- |
+| Windows x64 | `zapier-cli_windows_x86_64.zip` |
+| macOS Apple Silicon | `zapier-cli_darwin_arm64.tar.gz` |
+| macOS Intel | `zapier-cli_darwin_x86_64.tar.gz` |
+| Linux x64 | `zapier-cli_linux_x86_64.tar.gz` |
 
-</details>
+Each archive contains `zapier-pp-cli`, `zapier-pp-mcp`, this README, the agent
+skill, and the license. `SHA256SUMS` covers every archive. Because the repository
+is private, the installer requires a GitHub account that has access and an
+authenticated `gh` session. It never embeds or saves a GitHub token itself.
 
-<details>
-<summary>Firefox</summary>
+## Install manually
 
-Sign in to Zapier, open Web Developer Tools, select **Network**, and reload the
-page. Select an authenticated `zapier.com` request, open **Headers**, and copy
-the complete **Cookie** request-header value.
-
-</details>
-
-<details>
-<summary>Safari</summary>
-
-Enable Safari's Develop menu if it is hidden, sign in to Zapier, open **Develop
-→ Show Web Inspector**, select **Network**, and reload the page. Select an
-authenticated `zapier.com` request and copy the complete **Cookie** request
-header.
-
-</details>
-
-The cookie grants access to the signed-in Zapier account. Treat it like a
-password. Do not paste it into chat, screenshots, logs, source control, or a
-cookie-export extension. Logging out of Zapier invalidates the browser session;
-repeat setup with a fresh Cookie header when that happens.
-
-## Manual installation and private distribution
-
-This repository is private and currently has no GitHub release, so the prompt
-above falls back to a local source build. The public Printing Press catalog and
-public latest-release installer are also unavailable for this CLI.
+Clone the private repository after authenticating GitHub CLI:
 
 ```bash
-git clone https://github.com/VAS-99-99/zapier-cli.git
+gh auth login
+gh repo clone VAS-99-99/zapier-cli
 cd zapier-cli
-mkdir -p ./bin
-go build -o ./bin/zapier-pp-cli ./cmd/zapier-pp-cli
-go build -o ./bin/zapier-pp-mcp ./cmd/zapier-pp-mcp
 ```
 
-For a recipient without Go, the repository owner can privately share the
-matching approved archive from `build/share/`. Extract it, make the binaries
-executable on macOS/Linux, and add their directory to `PATH`:
+On macOS or Linux:
 
 ```bash
-export PATH="/path/to/extracted-zapier-cli:$PATH"
-zapier-pp-cli --version
+./install.sh
 ```
 
-Share the matching `.mcpb` bundle through the same private channel for an
-MCPB-capable host. Otherwise, point the MCP host at the locally built
-`zapier-pp-mcp` binary and reconnect or restart that host.
-
-## Manual credential setup
-
-Run `zapier-pp-cli auth setup --launch` for the current instructions. On
-macOS/Linux, the printed flow uses a hidden prompt so the cookie does not enter
-shell history:
-
-```bash
-printf 'Paste Zapier session cookie: ' >&2; IFS= read -rs ZAPIER_SESSION_COOKIE; printf '\n' >&2
-printf '%s' "$ZAPIER_SESSION_COOKIE" | zapier-pp-cli auth set-token
-unset ZAPIER_SESSION_COOKIE
-zapier-pp-cli doctor --json
-```
-
-On Windows PowerShell, use this hidden prompt instead of the temporary-file
-fallback printed by `auth setup`:
+On Windows PowerShell:
 
 ```powershell
-$SecureCookie = Read-Host 'Paste Zapier session cookie' -AsSecureString
-$CookiePtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureCookie)
-try {
-  [Runtime.InteropServices.Marshal]::PtrToStringBSTR($CookiePtr) | zapier-pp-cli auth set-token
-} finally {
-  [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($CookiePtr)
-  Remove-Variable SecureCookie, CookiePtr -ErrorAction SilentlyContinue
-}
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-This writes no plaintext cookie file, zeroes the temporary unmanaged buffer,
-and clears its PowerShell variables when it finishes.
+The installers select the current system archive, download it with `gh`, verify
+its checksum before extraction, and install both binaries without administrator
+rights. The default directories are `$HOME/.local/bin` on macOS/Linux and
+`%LOCALAPPDATA%\Programs\ZapierCLI` on Windows. They add the directory to the
+user's PATH when needed.
 
-`auth set-token` stores the cookie in the local credentials file. Do not share
-that file. MCP hosts need the same `ZAPIER_SESSION_COOKIE` value in their
-private host configuration; never commit the host configuration.
+Useful installer options:
+
+| macOS/Linux | Windows PowerShell | Purpose |
+| --- | --- | --- |
+| `--tag TAG` | `-Tag TAG` | Install a named release instead of the latest stable release |
+| `--install-dir DIR` | `-InstallDir DIR` | Use another user-writable directory |
+| `--verify-only` | `-VerifyOnly` | Download and verify without installing |
+| `--no-path-update` | `-NoPathUpdate` | Leave the user's PATH unchanged |
+
+## Connect the account
+
+Run:
+
+```bash
+zapier-pp-cli auth browser
+```
+
+The CLI downloads its pinned browser components into user-local storage when
+needed and opens a dedicated visible window. Sign in to Zapier there. The CLI
+saves only the Zapier-scoped session to protected local credential storage and
+does not print it or create an export file.
+
+Immediately after connection, run only:
+
+```bash
+zapier-pp-cli session --agent --no-learn
+```
+
+Show the exact returned account identity and wait for the user to confirm it.
+Only then run `doctor` or another live read.
+
+## Connect Claude or Codex
+
+The installer prints commands with the absolute path to `zapier-pp-mcp`. Use
+the command for the current host. These PATH-based forms also work when the host
+inherits the updated PATH:
+
+```bash
+# Claude Code
+claude mcp add --scope user zapier -- zapier-pp-mcp
+
+# Codex
+codex mcp add zapier -- zapier-pp-mcp
+```
+
+The MCP server reads the same protected local credential store as the same OS
+user. Do not add a Zapier cookie or token to the MCP configuration. Restart or
+reconnect the host after changing its MCP registration.
 
 ## What it can do
 
-| Capability | Command | Remote effect |
+| Need | Command | Remote effect |
 | --- | --- | --- |
-| Check session/account health | `session`, `doctor` | Read only |
-| List or search Zaps | `zaps list --name <name>` | Read only |
-| List run history | `runs list --status error` | Read only |
-| Inspect one run | `runs get <run-id>` | Read only |
-| Diagnose failed steps | `diagnose <zap-name-or-id>` | Read only |
+| Check the connected account | `session`, `doctor` | Read only |
+| List or search Zaps | `zaps list --name <text>` | Read only |
+| List historical runs | `runs list --status error` | Read only |
+| Inspect one run and its steps | `runs get <run-id>` | Read only |
+| Find the failed step and error | `diagnose <zap-name-or-id>` | Read only |
 
-It cannot create, edit, enable, disable, replay, cancel, delete, publish, or
-otherwise mutate remote Zapier state.
+The remote boundary is strict. The CLI has no command to create, edit, enable,
+disable, rename, publish, replay, cancel, or delete Zapier data. Webhook delivery
+and remote feedback are disabled. Output goes to stdout or an explicitly chosen
+local file. Feedback and learning data remain on the current machine.
 
-`api` inventories only raw endpoints defined by the spec. Use `which` and
-`--help` to discover the hand-authored `zaps`, `runs`, and `diagnose` commands.
-
-## Machine output
-
-Use `--agent` for compact JSON and no prompts, `--json` for JSON, `--csv` for
-CSV, or `--plain` for tab-separated text. Nested values serialize as compact
-JSON in CSV and plain output.
+Use runtime discovery instead of relying on a copied command list:
 
 ```bash
-zapier-pp-cli zaps list --agent
-zapier-pp-cli runs list --status error --json
-zapier-pp-cli diagnose "Billing sync" --plain
+zapier-pp-cli which "<capability>" --json
+zapier-pp-cli <command> --help
 ```
 
-For the four inspection commands, `--agent` returns a stable envelope; parse
-the payload from `.results` and confirm `.meta.source == "live"`:
+Use `--agent` for compact JSON, non-interactive defaults, and no color. The
+inspection commands return a stable envelope under `--agent`; read the payload
+from `.results` and confirm `.meta.source == "live"`.
 
-```json
-{"meta":{"source":"live"},"results":[{"id":101,"state":"on","title":"Example Zap"}]}
+```bash
+zapier-pp-cli zaps list --name "billing" --limit 5 --agent
+zapier-pp-cli runs list --zap <zap-id> --status error --agent
+zapier-pp-cli runs get <run-id> --agent
+zapier-pp-cli diagnose <zap-id> --limit 5 --agent
 ```
 
-`--json` without `--agent` returns the bare JSON value instead. The `zaps list`,
-`runs list`, `runs get`, and `diagnose` commands are live-only: pass
-`--data-source live` when making the choice explicit. A working account
-connection is a prerequisite; `doctor` reports whether the saved session
-cookie is present.
+## Reconnect or uninstall
+
+To reconnect, run `zapier-pp-cli auth browser` again. Treat it as a new
+connection: run only `session --agent --no-learn`, show the account identity,
+and wait for confirmation before any other live read.
+
+To remove the connection and MCP registration:
+
+```bash
+zapier-pp-cli auth logout
+claude mcp remove --scope user zapier
+codex mcp remove zapier
+```
+
+Run only the MCP removal command for each installed host. Then remove
+`zapier-pp-cli` and `zapier-pp-mcp` from `$HOME/.local/bin` on macOS/Linux, or
+remove `zapier-pp-cli.exe` and `zapier-pp-mcp.exe` from
+`%LOCALAPPDATA%\Programs\ZapierCLI` on Windows. If installation used a custom
+directory, remove the two binaries from that directory instead. Remove an empty
+installer-added PATH entry if desired.
 
 ## Troubleshooting
 
-If a recipient cannot run the binary, check `PATH` and reconnect the MCP host
-after updating its command or environment. If authentication fails, repeat the
-browser-session setup with a fresh Cookie header; do not print its value while
-debugging.
+- Private release download fails: run `gh auth status`, then confirm the signed-in
+  GitHub account has been invited to `VAS-99-99/zapier-cli`.
+- The command is missing after install: open a new terminal, or use the absolute
+  binary path printed by the installer.
+- Claude or Codex cannot find the MCP server: register the absolute
+  `zapier-pp-mcp` path printed by the installer, then restart the host.
+- The Zapier session expired: rerun `auth browser`. Never debug authentication by
+  printing, exporting, or manually copying a credential.
 
-## Unique Features
+## Contributor source build
 
-These capabilities aren't available in any other tool for this API.
+This section is for people changing the source. Normal installation uses the
+prebuilt release and does not require Go.
 
-### Read-only Zap inspection
-- **`zaps list`** — List Zaps and filter by a case-insensitive title substring without changing them.
+```bash
+go build -o ./bin/zapier-pp-cli ./cmd/zapier-pp-cli
+go build -o ./bin/zapier-pp-mcp ./cmd/zapier-pp-mcp
+go test ./...
+```
 
-  _Agents can safely resolve a Zap before inspecting its historical runs._
-
-  ```bash
-  zapier-pp-cli zaps list --name webhook --limit 5 --agent
-  ```
-
-### Read-only run inspection
-- **`runs list`** — List historical Zap runs with optional Zap and status filters.
-
-  _Agents can find the relevant failed execution using a bounded live read._
-
-  ```bash
-  zapier-pp-cli runs list --status error --limit 10 --agent
-  ```
-- **`runs get`** — Open one historical run and return every step's status, input, output, and error.
-
-  _Agents can inspect exactly what happened inside a known run without replaying it._
-
-  ```bash
-  zapier-pp-cli runs get <run-id> --agent
-  ```
-
-### Read-only diagnosis
-- **`diagnose`** — Resolve a Zap and report the exact failed step and error from recent failed runs.
-
-  _Agents can answer where and why a Zap failed while preserving the product's strict read-only boundary._
-
-  ```bash
-  zapier-pp-cli diagnose <zap-id> --limit 5 --agent
-  ```
+Generated-tree changes need a matching durable record under
+`.printing-press-patches/`. Do not hand-edit the Printing Press release ledger.

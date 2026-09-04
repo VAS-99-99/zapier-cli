@@ -1438,7 +1438,7 @@ func looksLikeCredentialPlaceholder(value string) bool {
 }
 
 func authPlaceholderCredentialError(cfg *config.Config) error {
-	return authPlaceholderCredentialErrorWithSetup(cfg, "run 'zapier-pp-cli auth setup' for safe session-cookie instructions")
+	return authPlaceholderCredentialErrorWithSetup(cfg, "run 'zapier-pp-cli auth browser' to reconnect in a visible browser")
 }
 
 func authPlaceholderCredentialErrorWithSetup(cfg *config.Config, setup string) error {
@@ -1446,7 +1446,7 @@ func authPlaceholderCredentialErrorWithSetup(cfg *config.Config, setup string) e
 	if cfg != nil && cfg.Path != "" {
 		location = cfg.Path
 	}
-	return fmt.Errorf("%w configured in %s; set a real session cookie with: %s", ErrPlaceholderCredential, location, setup)
+	return fmt.Errorf("%w configured in %s; replace it through the supported browser connection: %s", ErrPlaceholderCredential, location, setup)
 }
 
 // binaryResponseEnvelope wraps a non-textual success body so it survives the

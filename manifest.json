@@ -3,7 +3,7 @@
   "name": "zapier-pp-mcp",
   "display_name": "Zapier",
   "version": "0.1.0",
-  "description": "Read-only CLI for your Zapier account: list zaps, check run history, diagnose failures.",
+  "description": "Strictly read-only Zapier inspection: verify the connected account, list and search Zaps, inspect historical runs, and diagnose failed steps.",
   "author": {
     "name": "CLI Printing Press"
   },
@@ -16,7 +16,6 @@
       "args": [],
       "env": {
         "ZAPIER_BASE_URL": "${user_config.zapier_base_url}",
-        "ZAPIER_SESSION_COOKIE": "${user_config.zapier_session_cookie}",
         "ZAPIER_USER_AGENT": "${user_config.zapier_user_agent}"
       }
     }
@@ -26,13 +25,6 @@
       "type": "string",
       "title": "ZAPIER_BASE_URL",
       "description": "Optional. Sets ZAPIER_BASE_URL for the Zapier MCP server. Per-instance, non-secret setting; not a credential."
-    },
-    "zapier_session_cookie": {
-      "type": "string",
-      "title": "ZAPIER_SESSION_COOKIE",
-      "description": "Sets ZAPIER_SESSION_COOKIE for the Zapier MCP server.",
-      "sensitive": true,
-      "required": true
     },
     "zapier_user_agent": {
       "type": "string",

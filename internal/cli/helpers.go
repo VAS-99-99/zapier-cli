@@ -52,29 +52,6 @@ func formatCLIParamValue(v any) string {
 	}
 }
 
-const maxSecretFromStdin = 64 << 10
-
-func readSecretFromStdin(r io.Reader) (string, error) {
-	if f, ok := r.(*os.File); ok {
-		info, err := f.Stat()
-		if err == nil && info.Mode()&os.ModeCharDevice != 0 {
-			return "", fmt.Errorf("read the secret from stdin (pipe or redirect); it cannot be passed as a command argument")
-		}
-	}
-	data, err := io.ReadAll(io.LimitReader(r, int64(maxSecretFromStdin)+1))
-	if err != nil {
-		return "", fmt.Errorf("reading token from stdin: %w", err)
-	}
-	if len(data) > maxSecretFromStdin {
-		return "", fmt.Errorf("token on stdin exceeds %d bytes", maxSecretFromStdin)
-	}
-	token := strings.TrimSpace(string(data))
-	if token == "" {
-		return "", fmt.Errorf("empty token on stdin")
-	}
-	return token, nil
-}
-
 // noColor is set by the --no-color flag
 var noColor bool
 
@@ -349,18 +326,17 @@ func classifyAPIErrorOnly(err error) error {
 		return authErr(err)
 	case strings.Contains(msg, "HTTP 400") && cliutil.LooksLikeAuthError(msg):
 		return authErr(fmt.Errorf("%w\nhint: the API rejected the request — this usually means auth is missing or invalid."+
-			"\n      Run 'zapier-pp-cli auth setup' for safe session-cookie instructions."+
-			"\n      Run 'zapier-pp-cli doctor' to check auth status."+
+			"\n      Run 'zapier-pp-cli auth browser' to reconnect in a visible browser."+
+			"\n      Then run only 'zapier-pp-cli session --agent --no-learn' and confirm the account."+
 			"\n      Response: "+cliutil.SanitizeErrorBody(msg), err))
 	case strings.Contains(msg, "HTTP 401"):
-		return authErr(fmt.Errorf("%w\nhint: check your session cookie."+
-			" Run 'zapier-pp-cli auth setup' for safe session-cookie instructions."+
-			"\n      Run 'zapier-pp-cli doctor' to check auth status.", err))
+		return authErr(fmt.Errorf("%w\nhint: run 'zapier-pp-cli auth browser' to reconnect in a visible browser."+
+			"\n      Then run only 'zapier-pp-cli session --agent --no-learn' and confirm the account.", err))
 	case strings.Contains(msg, "HTTP 403"):
 		return authErr(fmt.Errorf("%w\nhint: permission denied. Your credentials are valid but lack access to this resource."+
 			"\n      Check that your credentials have the required permissions and match the API's expected auth scheme."+
-			"\n      Run 'zapier-pp-cli auth setup' for safe session-cookie instructions."+
-			"\n      Run 'zapier-pp-cli doctor' to check auth status.", err))
+			"\n      Run 'zapier-pp-cli auth browser' to connect the intended account again."+
+			"\n      Then run only 'zapier-pp-cli session --agent --no-learn' and confirm the account.", err))
 	case strings.Contains(msg, "HTTP 404"):
 		return notFoundErr(fmt.Errorf("%w\nhint: resource not found. Run the 'list' command to see available items", err))
 	case strings.Contains(msg, "HTTP 429"):
@@ -2543,7 +2519,7 @@ func printProvenance(cmd *cobra.Command, count int, prov DataProvenance) {
 func nonJSONPayloadError(data json.RawMessage) error {
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) > 0 && trimmed[0] == '<' {
-		return authErr(fmt.Errorf("not authenticated or session expired; API returned HTML instead of JSON. Run 'zapier-pp-cli auth setup' for safe session-cookie instructions"))
+		return authErr(fmt.Errorf("not authenticated or session expired; API returned HTML instead of JSON. Run 'zapier-pp-cli auth browser' to reconnect in a visible browser"))
 	}
 	if len(trimmed) == 0 {
 		return apiErr(fmt.Errorf("API returned an empty response body; expected JSON"))
