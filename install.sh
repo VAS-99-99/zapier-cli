@@ -22,7 +22,7 @@ Options:
   --no-path-update   Do not add the install directory to a shell profile.
   -h, --help         Show this help.
 
-Requires the GitHub CLI (`gh`) signed in to an account with repository access.
+Requires `curl` or `wget`. No GitHub login is required.
 EOF
 }
 
@@ -34,6 +34,18 @@ fail() {
 cleanup() {
   if [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ]; then
     rm -rf -- "$TEMP_DIR"
+  fi
+}
+
+download() {
+  source_url=$1
+  destination=$2
+  if command -v curl >/dev/null 2>&1; then
+    curl --fail --location --silent --show-error --retry 2 --output "$destination" "$source_url"
+  elif command -v wget >/dev/null 2>&1; then
+    wget --quiet --output-document="$destination" "$source_url"
+  else
+    fail "curl or wget is required to download the public release"
   fi
 }
 
@@ -103,28 +115,30 @@ fi
 
 ASSET_NAME="zapier-cli_${PLATFORM}_${ARCH}.tar.gz"
 
-command -v gh >/dev/null 2>&1 || fail "GitHub CLI (gh) is required. Install it from https://cli.github.com/ and run: gh auth login"
-if ! gh auth status --hostname github.com >/dev/null 2>&1; then
-  fail "GitHub CLI is not signed in to github.com. Run 'gh auth login', then retry. Your token is never read or printed by this installer."
-fi
-
-if [ -z "$TAG" ]; then
-  TAG=$(gh release view --repo "$REPOSITORY" --json tagName --jq .tagName 2>/dev/null) ||
-    fail "could not resolve the latest release in $REPOSITORY; confirm that GitHub CLI is authenticated and the release is available"
-  [ -n "$TAG" ] || fail "the repository does not have a published release"
-fi
-
 TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/zapier-cli-install.XXXXXX") || fail "could not create a temporary directory"
 trap cleanup 0
 trap 'exit 130' HUP INT TERM
 
+if [ -z "$TAG" ]; then
+  RELEASES_JSON="$TEMP_DIR/releases.json"
+  download "https://api.github.com/repos/$REPOSITORY/releases?per_page=20" "$RELEASES_JSON" ||
+    fail "could not resolve the newest release in $REPOSITORY"
+  TAG=$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$RELEASES_JSON" | head -n 1)
+  [ -n "$TAG" ] || fail "the public repository does not have a published release"
+fi
+
+case "$TAG" in
+  v[0-9A-Za-z]* ) ;;
+  *) fail "invalid release tag: $TAG" ;;
+esac
+case "$TAG" in
+  *[!0-9A-Za-z._-]*) fail "invalid release tag: $TAG" ;;
+esac
+
 printf 'Downloading %s (%s)...\n' "$ASSET_NAME" "$TAG"
-if ! gh release download "$TAG" \
-  --repo "$REPOSITORY" \
-  --pattern "$ASSET_NAME" \
-  --pattern SHA256SUMS \
-  --dir "$TEMP_DIR" \
-  --clobber >/dev/null; then
+RELEASE_ROOT="https://github.com/$REPOSITORY/releases/download/$TAG"
+if ! download "$RELEASE_ROOT/$ASSET_NAME" "$TEMP_DIR/$ASSET_NAME" ||
+   ! download "$RELEASE_ROOT/SHA256SUMS" "$TEMP_DIR/SHA256SUMS"; then
   fail "could not download release $TAG from $REPOSITORY"
 fi
 

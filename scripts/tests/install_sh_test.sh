@@ -36,40 +36,27 @@ case "$1" in
 esac
 EOF
 
-cat >"$MOCK_BIN/gh" <<'EOF'
+cat >"$MOCK_BIN/curl" <<'EOF'
 #!/bin/sh
 set -eu
-if [ "$1 $2" = "auth status" ]; then
-  [ "${MOCK_GH_AUTH:-ok}" = ok ]
-  exit
-fi
-if [ "$1 $2" = "release view" ]; then
-  printf '%s\n' "${MOCK_RELEASE_TAG:-v-test}"
-  exit
-fi
-if [ "$1 $2" = "release download" ]; then
-  shift 2
-  destination=""
-  patterns=""
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --dir) destination=$2; shift 2 ;;
-      --pattern) patterns="$patterns $2"; shift 2 ;;
-      --repo) shift 2 ;;
-      --clobber) shift ;;
-      *) shift ;;
-    esac
-  done
-  for pattern in $patterns; do
-    cp "$MOCK_RELEASE_DIR/$pattern" "$destination/$pattern"
-  done
-  exit
-fi
-exit 3
+destination=""
+url=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output) destination=$2; shift 2 ;;
+    --retry) shift 2 ;;
+    --fail|--location|--silent|--show-error) shift ;;
+    *) url=$1; shift ;;
+  esac
+done
+case "$url" in
+  *api.github.com*/releases*) printf '[{"tag_name":"%s","draft":false}]\n' "${MOCK_RELEASE_TAG:-v1-prerelease}" >"$destination" ;;
+  *) cp "$MOCK_RELEASE_DIR/${url##*/}" "$destination" ;;
+esac
 EOF
-chmod +x "$MOCK_BIN/uname" "$MOCK_BIN/gh"
+chmod +x "$MOCK_BIN/uname" "$MOCK_BIN/curl"
 
-printf '#!/bin/sh\nprintf "zapier-pp-cli v-prerelease\\n"\n' >"$RELEASE_DIR/payload/zapier-pp-cli"
+printf '#!/bin/sh\nprintf "zapier-pp-cli v1-prerelease\\n"\n' >"$RELEASE_DIR/payload/zapier-pp-cli"
 printf '#!/bin/sh\nprintf "new mcp\\n"\n' >"$RELEASE_DIR/payload/zapier-pp-mcp"
 chmod +x "$RELEASE_DIR/payload/zapier-pp-cli" "$RELEASE_DIR/payload/zapier-pp-mcp"
 tar -czf "$RELEASE_DIR/zapier-cli_linux_x86_64.tar.gz" -C "$RELEASE_DIR/payload" zapier-pp-cli zapier-pp-mcp
@@ -82,9 +69,9 @@ printf '%s  %s\n' "$RELEASE_HASH" zapier-cli_linux_x86_64.tar.gz >"$RELEASE_DIR/
 
 TEST_PATH="$MOCK_BIN:$PATH"
 
-missing_auth_output=$(PATH="$TEST_PATH" MOCK_GH_AUTH=missing MOCK_RELEASE_DIR="$RELEASE_DIR" \
-  sh "$REPO_ROOT/install.sh" --verify-only 2>&1) && fail "missing authentication unexpectedly succeeded"
-assert_contains "$missing_auth_output" "gh auth login"
+public_verify_output=$(PATH="$TEST_PATH" MOCK_RELEASE_DIR="$RELEASE_DIR" \
+  sh "$REPO_ROOT/install.sh" --verify-only 2>&1)
+assert_contains "$public_verify_output" "Verified release v1-prerelease (CLI version v1-prerelease); no files were installed."
 
 cp "$RELEASE_DIR/SHA256SUMS" "$RELEASE_DIR/SHA256SUMS.good"
 printf '%064d  %s\n' 0 zapier-cli_linux_x86_64.tar.gz >"$RELEASE_DIR/SHA256SUMS"
@@ -94,12 +81,12 @@ assert_contains "$checksum_output" "checksum verification failed"
 mv "$RELEASE_DIR/SHA256SUMS.good" "$RELEASE_DIR/SHA256SUMS"
 
 verify_output=$(PATH="$TEST_PATH" MOCK_RELEASE_DIR="$RELEASE_DIR" \
-  sh "$REPO_ROOT/install.sh" --tag v-prerelease --verify-only 2>&1)
-assert_contains "$verify_output" "Verified release v-prerelease (CLI version v-prerelease); no files were installed."
+  sh "$REPO_ROOT/install.sh" --tag v1-prerelease --verify-only 2>&1)
+assert_contains "$verify_output" "Verified release v1-prerelease (CLI version v1-prerelease); no files were installed."
 
 version_mismatch_output=$(PATH="$TEST_PATH" MOCK_RELEASE_DIR="$RELEASE_DIR" \
-  sh "$REPO_ROOT/install.sh" --tag v-other --verify-only 2>&1) && fail "mismatched release version unexpectedly succeeded"
-assert_contains "$version_mismatch_output" "reports version v-prerelease but release tag is v-other"
+  sh "$REPO_ROOT/install.sh" --tag v2-other --verify-only 2>&1) && fail "mismatched release version unexpectedly succeeded"
+assert_contains "$version_mismatch_output" "reports version v1-prerelease but release tag is v2-other"
 
 cp "$RELEASE_DIR/zapier-cli_linux_x86_64.tar.gz" "$RELEASE_DIR/zapier-cli_linux_x86_64.tar.gz.good"
 cp "$RELEASE_DIR/SHA256SUMS" "$RELEASE_DIR/SHA256SUMS.good"
@@ -113,7 +100,7 @@ else
 fi
 printf '%s  %s\n' "$DEV_HASH" zapier-cli_linux_x86_64.tar.gz >"$RELEASE_DIR/SHA256SUMS"
 dev_output=$(PATH="$TEST_PATH" MOCK_RELEASE_DIR="$RELEASE_DIR" \
-  sh "$REPO_ROOT/install.sh" --tag v-dev --verify-only 2>&1) && fail "development binary unexpectedly passed verification"
+  sh "$REPO_ROOT/install.sh" --tag v3-dev --verify-only 2>&1) && fail "development binary unexpectedly passed verification"
 assert_contains "$dev_output" "development version 0.0.0-dev"
 mv "$RELEASE_DIR/zapier-cli_linux_x86_64.tar.gz.good" "$RELEASE_DIR/zapier-cli_linux_x86_64.tar.gz"
 mv "$RELEASE_DIR/SHA256SUMS.good" "$RELEASE_DIR/SHA256SUMS"
@@ -123,19 +110,19 @@ mkdir -p "$INSTALL_DIR"
 printf 'old cli\n' >"$INSTALL_DIR/zapier-pp-cli"
 printf 'old mcp\n' >"$INSTALL_DIR/zapier-pp-mcp"
 install_output=$(PATH="$TEST_PATH" MOCK_RELEASE_DIR="$RELEASE_DIR" \
-  sh "$REPO_ROOT/install.sh" --tag v-prerelease --install-dir "$INSTALL_DIR" --no-path-update 2>&1)
+  sh "$REPO_ROOT/install.sh" --tag v1-prerelease --install-dir "$INSTALL_DIR" --no-path-update 2>&1)
 
 installed_cli=$("$INSTALL_DIR/zapier-pp-cli" version)
 installed_mcp=$("$INSTALL_DIR/zapier-pp-mcp")
-[ "$installed_cli" = "zapier-pp-cli v-prerelease" ] || fail "zapier-pp-cli was not replaced with verified payload"
+[ "$installed_cli" = "zapier-pp-cli v1-prerelease" ] || fail "zapier-pp-cli was not replaced with verified payload"
 [ "$installed_mcp" = "new mcp" ] || fail "zapier-pp-mcp was not replaced with verified payload"
 assert_contains "$install_output" "claude mcp add --scope user zapier --"
 assert_contains "$install_output" "codex mcp add zapier --"
 assert_contains "$install_output" "zapier-pp-cli session --agent --no-learn"
-assert_contains "$install_output" "CLI version v-prerelease"
+assert_contains "$install_output" "CLI version v1-prerelease"
 
 unsupported_output=$(PATH="$TEST_PATH" MOCK_UNAME_S=Linux MOCK_UNAME_M=arm64 MOCK_RELEASE_DIR="$RELEASE_DIR" \
   sh "$REPO_ROOT/install.sh" --verify-only 2>&1) && fail "unsupported platform unexpectedly succeeded"
 assert_contains "$unsupported_output" "Linux arm64"
 
-printf 'PASS: install.sh authentication, platform, checksum, verification, replacement, and guidance tests\n'
+printf 'PASS: install.sh public download, platform, checksum, verification, replacement, and guidance tests\n'

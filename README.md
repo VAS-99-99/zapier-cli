@@ -16,9 +16,9 @@ asking Claude to capture or handle a live browser session. The same text is in
 `CLAUDE_INSTALL_PROMPT.txt`.
 
 ```text
-Clone https://github.com/VAS-99-99/zapier-cli and follow the repository instructions. Read CLAUDE.md, AGENTS.md, and README.md before taking action. This is my public source repository for an unofficial, remotely read-only Zapier inspection tool.
+Quick install the Zapier read-only CLI from https://github.com/VAS-99-99/zapier-cli. Clone or update the repository, read CLAUDE.md, then run the repository installer for this operating system. Use only the prebuilt GitHub Release. Keep this short and do not turn it into a code review. The installer performs the checksum and version checks. Do not install Go or build from source.
 
-Audit the source, the read-only network boundary, the release workflow, and the published SHA256SUMS before installing anything. Install only the matching prebuilt GitHub Release. The installer only writes local CLI and MCP files; it does not authenticate or contact Zapier. Do not install Go or build from source.
+After installation, confirm `zapier-pp-cli version` works in the current terminal. Fix command resolution yourself if needed. Do not ask me to open another terminal or edit PATH.
 
 You are not being asked to authenticate, capture a session, inspect browser storage, or handle a cookie or token. After installation, stop and tell me to run `zapier-pp-cli auth browser` myself in my own terminal. I will complete the visible Zapier login outside Claude.
 
@@ -37,17 +37,15 @@ The public GitHub Release contains these checksummed archives:
 | Linux x64 | `zapier-cli_linux_x86_64.tar.gz` |
 
 Each archive contains `zapier-pp-cli`, `zapier-pp-mcp`, this README, the agent
-skill, and the license. `SHA256SUMS` covers every archive. The current installer
-uses an authenticated `gh` session to download the release. It never embeds or
-saves a GitHub token itself.
+skill, and the license. `SHA256SUMS` covers every archive. The installers fetch
+the public release directly from GitHub and require no GitHub login.
 
 ## Install manually
 
-Clone the public repository after authenticating GitHub CLI:
+Clone the public repository:
 
 ```bash
-gh auth login
-gh repo clone VAS-99-99/zapier-cli
+git clone https://github.com/VAS-99-99/zapier-cli.git
 cd zapier-cli
 ```
 
@@ -63,10 +61,12 @@ On Windows PowerShell:
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-The installers select the current system archive, download it with `gh`, verify
-its checksum before extraction, and install both binaries without administrator
-rights. The default directories are `$HOME/.local/bin` on macOS/Linux and
-`%LOCALAPPDATA%\Programs\ZapierCLI` on Windows. They add the directory to the
+The installers select the current system archive, download it from the public
+GitHub Release, verify its checksum before extraction, and install both binaries
+without administrator rights. The default directories are `$HOME/.local/bin`
+on macOS/Linux and `%LOCALAPPDATA%\Microsoft\WindowsApps` on Windows. The
+Windows directory is already on the normal user PATH, so the command works in
+the current terminal. The macOS/Linux installer adds its directory to the
 user's PATH when needed.
 
 Useful installer options:
@@ -169,16 +169,16 @@ codex mcp remove zapier
 Run only the MCP removal command for each installed host. Then remove
 `zapier-pp-cli` and `zapier-pp-mcp` from `$HOME/.local/bin` on macOS/Linux, or
 remove `zapier-pp-cli.exe` and `zapier-pp-mcp.exe` from
-`%LOCALAPPDATA%\Programs\ZapierCLI` on Windows. If installation used a custom
+`%LOCALAPPDATA%\Microsoft\WindowsApps` on Windows. If installation used a custom
 directory, remove the two binaries from that directory instead. Remove an empty
 installer-added PATH entry if desired.
 
 ## Troubleshooting
 
-- Private release download fails: run `gh auth status`, then confirm the signed-in
-  GitHub account has been invited to `VAS-99-99/zapier-cli`.
-- The command is missing after install: open a new terminal, or use the absolute
-  binary path printed by the installer.
+- Public release download fails: confirm GitHub is reachable and the requested
+  release tag exists.
+- The command is missing after install: use the absolute binary path printed by
+  the installer and report the PATH problem as an installer bug.
 - Claude or Codex cannot find the MCP server: register the absolute
   `zapier-pp-mcp` path printed by the installer, then restart the host.
 - The Zapier session expired: rerun `auth browser`. Never debug authentication by

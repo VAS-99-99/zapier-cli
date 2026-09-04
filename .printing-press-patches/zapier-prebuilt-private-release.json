@@ -4,8 +4,8 @@
   "applied_at": "2026-09-04",
   "base_run_id": "20260903-213259-ecc098e3",
   "base_printing_press_version": "4.31.6",
-  "summary": "Ship checksummed GitHub Release binaries, no-Go installers, and a user-owned browser-auth boundary for the supported platforms.",
-  "reason": "Normal users need an auditable installation path that never falls back to Go, while authentication stays outside the agent handling the installation.",
+  "summary": "Ship checksummed GitHub Release binaries, public no-Go installers, immediate Windows command resolution, and a user-owned browser-auth boundary.",
+  "reason": "Normal users need a short public installation that never falls back to Go or leaves an existing Windows terminal unable to find the command, while authentication stays outside the installing agent.",
   "files": [
     ".github/workflows/release.yml",
     ".gitignore",
@@ -27,5 +27,5 @@
     "contains development version",
     "no-Go, no-cookie-copy, session-first onboarding contract"
   ],
-  "validated_outcome": "Four deterministic target archives passed checksum, format, embedded-version, native CLI, native MCP, installer, onboarding, shellcheck, and actionlint verification."
+  "validated_outcome": "Public downloads, checksum and version rejection, transactional replacement, concise onboarding, and immediate Windows command resolution passed automated and Windows 11 tests."
 }

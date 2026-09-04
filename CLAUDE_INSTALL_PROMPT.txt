@@ -1,6 +1,6 @@
-Clone https://github.com/VAS-99-99/zapier-cli and follow the repository instructions. Read CLAUDE.md, AGENTS.md, and README.md before taking action. This is my public source repository for an unofficial, remotely read-only Zapier inspection tool.
+Quick install the Zapier read-only CLI from https://github.com/VAS-99-99/zapier-cli. Clone or update the repository, read CLAUDE.md, then run the repository installer for this operating system. Use only the prebuilt GitHub Release. Keep this short and do not turn it into a code review. The installer performs the checksum and version checks. Do not install Go or build from source.
 
-Audit the source, the read-only network boundary, the release workflow, and the published SHA256SUMS before installing anything. Install only the matching prebuilt GitHub Release. The installer only writes local CLI and MCP files; it does not authenticate or contact Zapier. Do not install Go or build from source.
+After installation, confirm `zapier-pp-cli version` works in the current terminal. Fix command resolution yourself if needed. Do not ask me to open another terminal or edit PATH.
 
 You are not being asked to authenticate, capture a session, inspect browser storage, or handle a cookie or token. After installation, stop and tell me to run `zapier-pp-cli auth browser` myself in my own terminal. I will complete the visible Zapier login outside Claude.
 

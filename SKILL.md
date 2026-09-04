@@ -16,16 +16,15 @@ delete anything in Zapier.
 Complete these five stages in order. The public repository is
 `https://github.com/VAS-99-99/zapier-cli`.
 
-1. Make sure the official GitHub CLI is installed and `gh auth status`
-   succeeds. Clone with
-   `gh repo clone VAS-99-99/zapier-cli`, or safely update the existing clone.
+1. Clone `https://github.com/VAS-99-99/zapier-cli`, or safely update the
+   existing clone. No GitHub login is required.
 2. Run `./install.sh` on macOS/Linux or
    `powershell -ExecutionPolicy Bypass -File .\install.ps1` on Windows. The
    installer downloads the matching public GitHub Release, verifies SHA-256,
    and installs both binaries. Normal users need no Go, Node.js, npm,
    Playwright, agent-browser, browser extension, or Zapier token. Verify
-   `zapier-pp-cli --version`, then run the exact Claude or Codex MCP
-   registration command printed by the installer.
+   `zapier-pp-cli version` in the current terminal, then run the exact Claude
+   or Codex MCP registration command printed by the installer.
 3. Stop and tell the user to run `zapier-pp-cli auth browser` personally in
    their own terminal. Do not run authentication, inspect browser storage, read
    the credential store, or request a cookie or token. The user completes the
@@ -40,7 +39,7 @@ Complete these five stages in order. The public repository is
 
 The installers support Windows x64, macOS Apple Silicon, macOS Intel, and Linux
 x64. They default to `$HOME/.local/bin` on macOS/Linux and
-`%LOCALAPPDATA%\Programs\ZapierCLI` on Windows. Read `README.md` for installer
+`%LOCALAPPDATA%\Microsoft\WindowsApps` on Windows. Read `README.md` for installer
 flags, reconnect, uninstall, and troubleshooting details.
 
 ## Established connection

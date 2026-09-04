@@ -44,11 +44,21 @@ for forbidden in ("go install", "verify go", "go build", "otherwise clone"):
     if forbidden in prompt.lower():
         raise SystemExit(f"agent prompt can still trigger a source build: {forbidden!r}")
 
+for forbidden in (
+    "audit the source",
+    "release workflow",
+    "published sha256sums",
+    "open a new terminal",
+):
+    if forbidden in prompt.lower():
+        raise SystemExit(f"agent prompt can still trigger slow or broken onboarding: {forbidden!r}")
+
 for required in (
     "https://github.com/VAS-99-99/zapier-cli",
-    "read CLAUDE.md, AGENTS.md, and README.md",
+    "quick install",
     "prebuilt GitHub Release",
-    "does not authenticate or contact Zapier",
+    "installer performs the checksum and version checks",
+    "confirm `zapier-pp-cli version` works in the current terminal",
     "tell me to run `zapier-pp-cli auth browser` myself",
     "only after I explicitly reply `connected`",
     "zapier-pp-cli session --agent --no-learn",
@@ -63,6 +73,12 @@ if doctor_at == -1 or session_at == -1 or session_at >= doctor_at:
 
 if "go " in installers.lower() or "go\t" in installers.lower():
     raise SystemExit("a normal-user installer invokes or instructs Go")
+
+if "github cli (gh) is required" in installers.lower():
+    raise SystemExit("a public-repository installer still requires GitHub CLI authentication")
+
+if "microsoft\\windowsapps" not in (root / "install.ps1").read_text(encoding="utf-8").lower():
+    raise SystemExit("Windows installer does not use the existing per-user command directory")
 
 if "authentication is a user-owned boundary" not in agents.lower():
     raise SystemExit("AGENTS.md does not preserve the user-owned authentication boundary")

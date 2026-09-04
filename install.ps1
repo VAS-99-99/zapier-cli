@@ -4,7 +4,7 @@ param(
     [string]$Tag,
 
     [Parameter()]
-    [string]$InstallDir = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs\ZapierCLI'),
+    [string]$InstallDir = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Microsoft\WindowsApps'),
 
     [Parameter()]
     [switch]$VerifyOnly,
@@ -46,21 +46,22 @@ if ([string]::IsNullOrWhiteSpace($InstallDir)) {
     Stop-Install 'the install directory cannot be empty'
 }
 
-if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-    Stop-Install 'GitHub CLI (gh) is required. Install it from https://cli.github.com/ and run: gh auth login'
-}
-
-& gh auth status --hostname github.com *> $null
-if ($LASTEXITCODE -ne 0) {
-    Stop-Install "GitHub CLI is not signed in to github.com. Run 'gh auth login', then retry. Your token is never read or printed by this installer."
-}
-
 if ([string]::IsNullOrWhiteSpace($Tag)) {
-    $TagOutput = & gh release view --repo $Repository --json tagName --jq .tagName 2>$null
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($TagOutput -join ''))) {
-        Stop-Install "could not resolve the latest release in $Repository; confirm that GitHub CLI is authenticated and the release is available"
+    try {
+        $Headers = @{ Accept = 'application/vnd.github+json'; 'User-Agent' = 'zapier-read-only-cli-installer' }
+        $Releases = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases?per_page=20" -Headers $Headers)
+        $PublishedRelease = $Releases | Where-Object { -not $_.draft } | Select-Object -First 1
+    } catch {
+        Stop-Install "could not resolve the newest release in $Repository. $($_.Exception.Message)"
     }
-    $Tag = ($TagOutput -join '').Trim()
+    if (-not $PublishedRelease -or [string]::IsNullOrWhiteSpace($PublishedRelease.tag_name)) {
+        Stop-Install "the public repository $Repository does not have a published release"
+    }
+    $Tag = $PublishedRelease.tag_name.Trim()
+}
+
+if ($Tag -notmatch '^v[0-9A-Za-z][0-9A-Za-z._-]*$') {
+    Stop-Install "invalid release tag: $Tag"
 }
 
 $TempRoot = Join-Path ([IO.Path]::GetTempPath()) ("zapier-cli-install-{0}" -f [Guid]::NewGuid().ToString('N'))
@@ -68,9 +69,17 @@ New-Item -ItemType Directory -Path $TempRoot | Out-Null
 
 try {
     Write-Host "Downloading $AssetName ($Tag)..."
-    & gh release download $Tag --repo $Repository --pattern $AssetName --pattern SHA256SUMS --dir $TempRoot --clobber | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Stop-Install "could not download release $Tag from $Repository"
+    $ReleaseRoot = "https://github.com/$Repository/releases/download/$Tag"
+    $DownloadHeaders = @{ 'User-Agent' = 'zapier-read-only-cli-installer' }
+    $SavedProgressPreference = $ProgressPreference
+    try {
+        $ProgressPreference = 'SilentlyContinue'
+        Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseRoot/$AssetName" -Headers $DownloadHeaders -OutFile (Join-Path $TempRoot $AssetName)
+        Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseRoot/SHA256SUMS" -Headers $DownloadHeaders -OutFile (Join-Path $TempRoot 'SHA256SUMS')
+    } catch {
+        Stop-Install "could not download release $Tag from $Repository. $($_.Exception.Message)"
+    } finally {
+        $ProgressPreference = $SavedProgressPreference
     }
 
     $ArchivePath = Join-Path $TempRoot $AssetName
@@ -199,12 +208,8 @@ try {
     Write-Host "Installed Zapier read-only CLI version $ReleaseVersion from release $Tag`:"
     Write-Host "  $CliTarget"
     Write-Host "  $McpTarget"
-    if ($PathChanged) {
-        Write-Host 'The install directory was added to your user PATH. Open a new terminal, or run:'
-    } else {
-        Write-Host 'If the command is not on PATH in this terminal, run:'
-    }
-    Write-Host "  `$env:Path = `"$ResolvedInstallDir;`$env:Path`""
+    Write-Host 'The command is available as:'
+    Write-Host '  zapier-pp-cli'
     Write-Host ''
     Write-Host 'Register the MCP server with your agent (choose one):'
     Write-Host "  Claude: claude mcp add --scope user zapier -- `"$McpTarget`""
