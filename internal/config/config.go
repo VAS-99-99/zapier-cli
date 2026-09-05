@@ -5,6 +5,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
 	"os"
@@ -510,6 +511,32 @@ func (c *Config) SaveTokens(clientID, clientSecret, accessToken, refreshToken st
 // collides with a builtin tag (e.g. an env var named XXX_ACCESS_TOKEN
 // resolving to the AccessToken field) ends up holding the new token.
 func (c *Config) SaveCredential(token string) error {
+	managed := c.AgentcookieManagedByExternalStore()
+	var previous *cliutil.Credentials
+	var previousStatus cliutil.CredentialLoadStatus
+	if !managed {
+		var err error
+		previous, previousStatus, err = cliutil.LoadCredentialsWithStatus()
+		if err != nil {
+			return errors.New("could not inspect the existing credential safely; credential was not changed")
+		}
+		if !previousStatus.Loaded {
+			// A soft read miss can mean an unsafe or malformed existing file.
+			// Only an absent file is safe to treat as a first-time save.
+			if _, err := os.Lstat(previousStatus.Path); !os.IsNotExist(err) {
+				return errors.New("could not preserve the existing credential safely; repair the credential file before reconnecting")
+			}
+		}
+	}
+	original := *c
+	original.envOverrides = make(map[string]bool, len(c.envOverrides))
+	for key, value := range c.envOverrides {
+		original.envOverrides[key] = value
+	}
+	if c.fileConfig != nil {
+		fileConfig := *c.fileConfig
+		original.fileConfig = &fileConfig
+	}
 	c.AuthHeaderVal = ""
 	c.AccessToken = ""
 	// Pair each builtin-field zeroing with an envOverrides delete, like
@@ -526,7 +553,23 @@ func (c *Config) SaveCredential(token string) error {
 	if err := c.saveCredentialsFirst(); err != nil {
 		return err
 	}
-	return c.save()
+	if err := c.save(); err != nil {
+		if managed {
+			return err
+		}
+		var rollbackErr error
+		if previousStatus.Loaded {
+			rollbackErr = cliutil.SaveCredentials(previous)
+		} else {
+			rollbackErr = cliutil.RemoveCredentials()
+		}
+		*c = original
+		if rollbackErr != nil {
+			return errors.New("saving configuration failed and credential rollback also failed; the saved credential may have changed; repair local storage before reconnecting")
+		}
+		return fmt.Errorf("saving configuration failed; previous credential state restored: %w", err)
+	}
+	return nil
 }
 
 func (c *Config) ClearTokens() error {

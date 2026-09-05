@@ -218,6 +218,9 @@ func TestAuthBrowserFailedReconnectPreservesCredentialAndCleansUp(t *testing.T) 
 			if !closed {
 				t.Fatal("failed reconnect did not attempt browser cleanup")
 			}
+			if failure == "close" && !strings.Contains(output.String(), "warning: could not close the private sign-in browser") {
+				t.Fatal("failed cleanup did not warn that the browser may remain open")
+			}
 		})
 	}
 }
@@ -290,5 +293,14 @@ func TestBrowserSessionValidationDoesNotExposeBodyReadErrors(t *testing.T) {
 	err := verifyAgentBrowserSession(context.Background(), "session=candidate-secret")
 	if err == nil || strings.Contains(err.Error(), "candidate-secret") {
 		t.Fatal("body read failure was not safely rejected")
+	}
+}
+
+func TestAuthBrowserProfileCleanupWarnsWithoutExposingFailureDetails(t *testing.T) {
+	var output bytes.Buffer
+	// Invalid basename refuses removal before accessing the filesystem.
+	cleanupAgentBrowserProfile("candidate-secret", &output)
+	if !strings.Contains(output.String(), "warning: could not remove the temporary sign-in profile") || strings.Contains(output.String(), "candidate-secret") {
+		t.Fatal("profile cleanup failure did not produce a credential-free warning")
 	}
 }

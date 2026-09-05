@@ -17,6 +17,8 @@
     "internal/cliutil/paths.go",
     "internal/cliutil/paths_private_test.go",
     "internal/cliutil/credentials_perms_test.go",
+    "internal/config/config.go",
+    "internal/config/credential_save_rollback_test.go",
     "cmd/zapier-pp-mcp/stdio_production_test.go",
     "install.sh",
     "install.ps1",
@@ -27,6 +29,8 @@
   ],
   "call_sites": [
     "verifyAgentBrowserSession(",
+    "cleanupAgentBrowserProfile(",
+    "TestSaveCredentialRollsBackWhenConfigWriteFails",
     "parseReportingRunsPage(",
     "parseReportingRunDetail(",
     "atomicWritePrivateFileWithVerifier(",

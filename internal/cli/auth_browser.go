@@ -132,7 +132,7 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 			if err := os.MkdirAll(profilePath, 0o700); err != nil {
 				return configErr(fmt.Errorf("creating the private browser profile: %w", err))
 			}
-			defer func() { _ = removeManagedAgentBrowserProfile(profilePath) }()
+			defer cleanupAgentBrowserProfile(profilePath, cmd.ErrOrStderr())
 			browserConfigPath, err := ensureAgentBrowserAuthConfig(profilePath)
 			if err != nil {
 				return configErr(err)
@@ -147,7 +147,11 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 				}
 				closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				_, _ = runAgentBrowserCommand(closeCtx, binaryPath, "--config", browserConfigPath, "--namespace", namespaceName, "--session", sessionName, "close", "--json")
+				result, err := runAgentBrowserCommand(closeCtx, binaryPath, "--config", browserConfigPath, "--namespace", namespaceName, "--session", sessionName, "close", "--json")
+				var data json.RawMessage
+				if err != nil || result.Truncated || decodeAgentBrowserData(result.Stdout, &data) != nil {
+					fmt.Fprintln(cmd.ErrOrStderr(), "warning: could not close the private sign-in browser; close its window manually before running auth browser again")
+				}
 			}()
 
 			openBrowser := func(ctx context.Context) error {
@@ -321,6 +325,12 @@ func removeManagedAgentBrowserProfile(path string) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 	return err
+}
+
+func cleanupAgentBrowserProfile(path string, warnings io.Writer) {
+	if err := removeManagedAgentBrowserProfile(path); err != nil {
+		fmt.Fprintln(warnings, "warning: could not remove the temporary sign-in profile; browser session data may remain on this machine; close the private browser and run auth browser again to retry cleanup")
+	}
 }
 
 func agentBrowserAuthConfigPath() (string, error) {

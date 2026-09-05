@@ -86,12 +86,12 @@ try {
 
     $noTagOutput = & {
         . $installer -VerifyOnly
-    } 2>&1 | Out-String
+    } *>&1 | Out-String
     Assert-Contains $noTagOutput "Verified release $releaseTag (CLI version $releaseTag); no files were installed."
 
     $explicitTagOutput = & {
         . $installer -Tag $releaseTag -VerifyOnly
-    } 2>&1 | Out-String
+    } *>&1 | Out-String
     Assert-Contains $explicitTagOutput "Verified release $releaseTag (CLI version $releaseTag); no files were installed."
 
     Set-Content -LiteralPath (Join-Path $releaseDir 'SHA256SUMS') -Value (('0' * 64) + '  zapier-cli_windows_x86_64.zip') -NoNewline
@@ -167,6 +167,10 @@ try {
 
     Push-Location $RepositoryRoot
     try {
+        & go test ./internal/config -run '^TestSaveCredentialRollsBackWhenConfigWriteFails$'
+        if ($LASTEXITCODE -ne 0) {
+            Stop-Test 'credential rollback tests failed'
+        }
         & go test ./internal/cli -run '^(TestAuthBrowser|TestBrowser|TestAuthLogout)'
         if ($LASTEXITCODE -ne 0) {
             Stop-Test 'fixture-based browser authentication and logout tests failed'
