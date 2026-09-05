@@ -11,7 +11,6 @@
 package cliutil
 
 import (
-	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -208,8 +207,8 @@ func TestLoadCredentials_MissingFileIsAbsentNotRefused(t *testing.T) {
 	}
 }
 
-// TestSaveCredentialsVerifiesWrittenFile exercises the NTFS case where a
-// credentials file inherits a broad ACE even though the writer requested 0600.
+// TestSaveCredentialsVerifiesWrittenFile rejects a broad inherited ACE before
+// replacement bytes are written, leaving the prior credential untouched.
 func TestSaveCredentialsVerifiesWrittenFile(t *testing.T) {
 	isolateCredsHome(t)
 	dataDir, err := DataDir()
@@ -220,23 +219,34 @@ func TestSaveCredentialsVerifiesWrittenFile(t *testing.T) {
 		t.Fatalf("mkdir data dir: %v", err)
 	}
 	if runtime.GOOS == "windows" {
+		const oldToken = "AT-OLD-CREDS-FILE-DO-NOT-REPLACE"
+		if err := SaveCredentials(&Credentials{AccessToken: oldToken}); err != nil {
+			t.Fatalf("save existing credentials: %v", err)
+		}
+		path, err := credentialsPath()
+		if err != nil {
+			t.Fatalf("credentialsPath() error = %v", err)
+		}
 		if err := runCredsPermsCmd(t, "icacls", dataDir, "/grant", "*S-1-5-32-545:(OI)(CI)(R)"); err != nil {
 			t.Skipf("icacls inherited grant failed; skipping environment-sensitive test: %v", err)
 		}
 		err = SaveCredentials(&Credentials{AccessToken: credsSampleReadPermsToken})
-		var permissionErr *CredentialsPermissionError
-		if err == nil || !strings.Contains(err.Error(), "permissions") || !errors.As(err, &permissionErr) {
-			t.Fatalf("SaveCredentials() error = %v, want post-save permission refusal", err)
+		if err == nil || !strings.Contains(err.Error(), "validating temporary private file permissions") {
+			t.Fatalf("SaveCredentials() error = %v, want pre-write permission refusal", err)
 		}
-		if permissionErr.Path != filepath.Join(dataDir, credentialsFileName) {
-			t.Fatalf("permission error path = %q, want %q", permissionErr.Path, filepath.Join(dataDir, credentialsFileName))
-		}
-		data, readErr := os.ReadFile(permissionErr.Path)
+		data, readErr := os.ReadFile(path)
 		if readErr != nil {
-			t.Fatalf("read saved credentials after permission refusal: %v", readErr)
+			t.Fatalf("read preserved credentials after permission refusal: %v", readErr)
 		}
-		if !strings.Contains(string(data), credsSampleReadPermsToken) {
-			t.Fatalf("saved credentials do not contain test token: %q", data)
+		if !strings.Contains(string(data), oldToken) || strings.Contains(string(data), credsSampleReadPermsToken) {
+			t.Fatalf("credentials were replaced or exposed new token: %q", data)
+		}
+		matches, globErr := filepath.Glob(filepath.Join(dataDir, "."+credentialsFileName+".*.tmp"))
+		if globErr != nil {
+			t.Fatalf("glob credential temporary files: %v", globErr)
+		}
+		if len(matches) != 0 {
+			t.Fatalf("credential temporary files remain: %v", matches)
 		}
 		return
 	}

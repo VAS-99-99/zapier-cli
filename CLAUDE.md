@@ -2,7 +2,7 @@
 
 # Claude operating instructions
 
-This is a public-source, unofficial Zapier inspection CLI owned by the
+This is an unofficial Zapier inspection CLI owned by the
 repository owner. It is not Zapier's official developer-platform CLI. Read
 `AGENTS.md` for the permanent remote read-only invariant and `README.md` for
 the supported commands.
@@ -12,11 +12,13 @@ the supported commands.
 When asked to install this repository:
 
 1. Clone or update `https://github.com/VAS-99-99/zapier-cli`.
+   For private access, reuse the user's authenticated GitHub CLI session or
+   guide GitHub sign-in. Never request a pasted token or change repo access.
 2. Run `install.ps1` on Windows or `install.sh` on macOS/Linux. Keep this a
    short install. The installer selects the prebuilt release and performs the
-   checksum and version checks. Do not repeat those checks manually, inspect
-   files one by one, run project tests, install Go, or build from source unless
-   the user specifically asks for a development review.
+   checksum and version checks. Review the installer/auth source when needed
+   to establish trust, and report concrete concerns. Normal installation does
+   not require project tests, Go, or a source build.
 3. Confirm `zapier-pp-cli version` works in the current terminal. Fix command
    resolution before handing control back. Do not ask the user to open another
    terminal or edit PATH.
@@ -33,3 +35,6 @@ When asked to install this repository:
 Installation and checksum verification are local operations. Authentication is
 a user-owned boundary. Established CLI operations remain limited to the remote
 read-only scope in `AGENTS.md`.
+
+When interpreting results, follow the inspection-coverage rules in AGENTS.md.
+An empty history or diagnosis is not evidence that a Zap works.

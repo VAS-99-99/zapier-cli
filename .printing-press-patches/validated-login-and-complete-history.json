@@ -1,0 +1,38 @@
+{
+  "schema_version": 2,
+  "id": "validated-login-and-complete-history",
+  "applied_at": "2026-09-05",
+  "base_run_id": "20260903-213259-ecc098e3",
+  "base_printing_press_version": "4.31.6",
+  "summary": "Require authenticated session validation before credential persistence, reject unsafe private-file writes before bytes reach disk, and make run-history coverage explicit without weakening remote read-only behavior.",
+  "reason": "Browser cookies alone do not prove login, Windows mode bits do not enforce ACL privacy, and nullable or paginated reporting data must not masquerade as complete or healthy history. Teammate installations must handle native PowerShell release arrays and authenticated private-release downloads.",
+  "files": [
+    "internal/cli/auth_browser.go",
+    "internal/cli/auth_browser_test.go",
+    "internal/cli/auth_browser_verification_test.go",
+    "internal/cli/runs.go",
+    "internal/cli/runs_test.go",
+    "internal/cli/diagnose.go",
+    "internal/cli/diagnose_test.go",
+    "internal/cliutil/paths.go",
+    "internal/cliutil/paths_private_test.go",
+    "internal/cliutil/credentials_perms_test.go",
+    "cmd/zapier-pp-mcp/stdio_production_test.go",
+    "install.sh",
+    "install.ps1",
+    "scripts/tests/install_sh_test.sh",
+    "scripts/tests/install_ps1_test.sh",
+    "scripts/tests/windows_production_test.ps1",
+    ".github/workflows/release.yml"
+  ],
+  "call_sites": [
+    "verifyAgentBrowserSession(",
+    "parseReportingRunsPage(",
+    "parseReportingRunDetail(",
+    "atomicWritePrivateFileWithVerifier(",
+    "github_cli_authenticated()",
+    "Test-GitHubCLIAuthentication",
+    "Windows PowerShell 5.1 production gate"
+  ],
+  "validated_outcome": "Regression tests demonstrate cookie-only login rejection, malformed history rejection, and credential-write refusal before persistence. Full Go tests, vet, race tests and installer fixture tests pass locally; release CI requires native Windows installer, ACL, browser-fixture and MCP discovery checks. Final live user acceptance is separate."
+}

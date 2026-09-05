@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -76,7 +75,11 @@ func failedRunIDs(cmd *cobra.Command, flags *rootFlags, zapID string, limit int,
 		pageSize = 100
 	}
 	ids := make([]string, 0, limit)
-	for offset := 0; ; {
+	seenRunIDs := make(map[string]struct{})
+	for offset, pageNumber := 0, 0; ; pageNumber++ {
+		if pageNumber >= maxReportingPaginationPages {
+			return nil, apiErr(fmt.Errorf("parsing error runs: history pagination exceeded %d pages; retry with a narrower window", maxReportingPaginationPages))
+		}
 		variables := map[string]any{
 			"accountId": accountID,
 			"status":    []string{"error"},
@@ -93,32 +96,27 @@ func failedRunIDs(cmd *cobra.Command, flags *rootFlags, zapID string, limit int,
 		if err != nil {
 			return nil, err
 		}
-		var parsed struct {
-			Data struct {
-				ZapRuns struct {
-					Edges []struct {
-						ID  string `json:"id"`
-						Zap struct {
-							ID string `json:"id"`
-						} `json:"zap"`
-					} `json:"edges"`
-					TotalCount int `json:"totalCount"`
-				} `json:"zapRuns"`
-			} `json:"data"`
-		}
-		if err := json.Unmarshal(raw, &parsed); err != nil {
+		page, err := parseReportingRunsPage(raw)
+		if err != nil {
 			return nil, apiErr(fmt.Errorf("parsing error runs: %w", err))
 		}
-		edges := parsed.Data.ZapRuns.Edges
+		edges := page.Edges
+		if offset+len(edges) < page.TotalCount && len(edges) == 0 {
+			return nil, apiErr(fmt.Errorf("parsing error runs: reporting page made no progress at offset %d", offset))
+		}
 		for _, edge := range edges {
-			if !includeHistorical || edge.Zap.ID == zapID {
+			if _, duplicate := seenRunIDs[edge.ID]; duplicate {
+				return nil, apiErr(fmt.Errorf("parsing error runs: history changed while paging (run %s repeated at offset %d); retry", edge.ID, offset))
+			}
+			seenRunIDs[edge.ID] = struct{}{}
+			if !includeHistorical || (edge.Zap != nil && edge.Zap.ID == zapID) {
 				ids = append(ids, edge.ID)
 				if len(ids) == limit {
 					return ids, nil
 				}
 			}
 		}
-		if len(edges) == 0 || offset+len(edges) >= parsed.Data.ZapRuns.TotalCount {
+		if len(edges) == 0 || offset+len(edges) >= page.TotalCount {
 			return ids, nil
 		}
 		offset += len(edges)
@@ -135,21 +133,17 @@ func runFailures(cmd *cobra.Command, flags *rootFlags, runID string, nodes []zap
 	if err != nil {
 		return nil, apiErr(fmt.Errorf("reading run %s detail: %w", runID, err))
 	}
-	var parsed struct {
-		Data struct {
-			ZapRun *struct {
-				StartTime string    `json:"startTime"`
-				Steps     []runStep `json:"steps"`
-			} `json:"zapRun"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &parsed); err != nil {
+	detail, found, err := parseReportingRunDetail(raw)
+	if err != nil {
 		return nil, apiErr(fmt.Errorf("parsing run %s detail: %w", runID, err))
 	}
-	if parsed.Data.ZapRun == nil {
+	if !found {
 		return nil, notFoundErr(fmt.Errorf("run %s not found", runID))
 	}
-	failures := failuresFromSteps(runID, parsed.Data.ZapRun.StartTime, parsed.Data.ZapRun.Steps, nodes)
+	if detail.ID != runID {
+		return nil, apiErr(fmt.Errorf("parsing run %s detail: reporting response returned run %s", runID, detail.ID))
+	}
+	failures := failuresFromSteps(runID, detail.StartTime, detail.Steps, nodes)
 	if len(failures) == 0 {
 		return nil, apiErr(fmt.Errorf("run %s detail contains no errored step", runID))
 	}

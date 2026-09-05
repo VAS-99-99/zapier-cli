@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/cliutil/testenv"
 	"github.com/mvanhorn/printing-press-library/library/productivity/zapier/internal/config"
 )
 
@@ -111,6 +113,8 @@ func hasArgSequence(args []string, sequence ...string) bool {
 
 func stubAgentBrowserGlobals(t *testing.T, configRoot string, fake *fakeAgentBrowser) {
 	t.Helper()
+	testenv.Isolate(t, cliutil.ConfigDir, cliutil.DataDir, config.LegacyConfigPath)
+	t.Setenv("ZAPIER_SESSION_COOKIE", "")
 	previousGOOS := browserRuntimeGOOS
 	previousGOARCH := browserRuntimeGOARCH
 	previousConfigDir := browserUserConfigDir
@@ -120,6 +124,10 @@ func stubAgentBrowserGlobals(t *testing.T, configRoot string, fake *fakeAgentBro
 	previousOpenRunner := runAgentBrowserOpen
 	previousSession := newAgentBrowserSession
 	previousPoll := browserPollInterval
+	previousSessionClient := browserSessionHTTPClient
+	browserSessionHTTPClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(validBrowserSessionFixture))}, nil
+	})}
 	browserRuntimeGOOS = "windows"
 	browserRuntimeGOARCH = "amd64"
 	browserUserConfigDir = func() (string, error) { return configRoot, nil }
@@ -147,6 +155,7 @@ func stubAgentBrowserGlobals(t *testing.T, configRoot string, fake *fakeAgentBro
 		runAgentBrowserOpen = previousOpenRunner
 		newAgentBrowserSession = previousSession
 		browserPollInterval = previousPoll
+		browserSessionHTTPClient = previousSessionClient
 	})
 }
 

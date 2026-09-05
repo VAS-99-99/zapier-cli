@@ -25,6 +25,19 @@ function Stop-Install {
     throw "Install failed: $Message"
 }
 
+function Test-GitHubCLIAuthentication {
+    $GitHubCLI = Get-Command gh -ErrorAction SilentlyContinue
+    if (-not $GitHubCLI) {
+        return $false
+    }
+    & gh auth status --hostname github.com *> $null
+    return $LASTEXITCODE -eq 0
+}
+
+function Get-GitHubCLIFallbackHint {
+    return 'Run "gh auth login" and retry, or download the release archive and SHA256SUMS manually from GitHub.'
+}
+
 $RunningOnWindows = $env:OS -eq 'Windows_NT'
 if (-not $RunningOnWindows -and (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue)) {
     $RunningOnWindows = $IsWindows
@@ -49,13 +62,38 @@ if ([string]::IsNullOrWhiteSpace($InstallDir)) {
 if ([string]::IsNullOrWhiteSpace($Tag)) {
     try {
         $Headers = @{ Accept = 'application/vnd.github+json'; 'User-Agent' = 'zapier-read-only-cli-installer' }
-        $Releases = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases?per_page=20" -Headers $Headers)
+        # Windows PowerShell 5.1 can return GitHub's JSON root array as one
+        # Object[] pipeline result. Enumerate the response explicitly so the
+        # draft filter always receives release objects.
+        $ReleaseResponse = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases?per_page=20" -Headers $Headers
+        $Releases = @(
+            foreach ($Release in $ReleaseResponse) {
+                $Release
+            }
+        )
         $PublishedRelease = $Releases | Where-Object { -not $_.draft } | Select-Object -First 1
     } catch {
-        Stop-Install "could not resolve the newest release in $Repository. $($_.Exception.Message)"
+        if (-not (Test-GitHubCLIAuthentication)) {
+            Stop-Install "could not resolve the newest release in $Repository anonymously. $(Get-GitHubCLIFallbackHint)"
+        }
+        try {
+            $GitHubCLIResponse = @(& gh api "repos/$Repository/releases?per_page=20" 2>$null)
+            if ($LASTEXITCODE -ne 0) {
+                throw 'GitHub CLI could not read releases'
+            }
+            $ReleaseResponse = ($GitHubCLIResponse -join "`n") | ConvertFrom-Json
+            $Releases = @(
+                foreach ($Release in $ReleaseResponse) {
+                    $Release
+                }
+            )
+            $PublishedRelease = $Releases | Where-Object { -not $_.draft } | Select-Object -First 1
+        } catch {
+            Stop-Install "could not resolve the newest release in $Repository with GitHub CLI. $(Get-GitHubCLIFallbackHint)"
+        }
     }
     if (-not $PublishedRelease -or [string]::IsNullOrWhiteSpace($PublishedRelease.tag_name)) {
-        Stop-Install "the public repository $Repository does not have a published release"
+        Stop-Install "the repository $Repository does not have a published release"
     }
     $Tag = $PublishedRelease.tag_name.Trim()
 }
@@ -77,7 +115,13 @@ try {
         Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseRoot/$AssetName" -Headers $DownloadHeaders -OutFile (Join-Path $TempRoot $AssetName)
         Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseRoot/SHA256SUMS" -Headers $DownloadHeaders -OutFile (Join-Path $TempRoot 'SHA256SUMS')
     } catch {
-        Stop-Install "could not download release $Tag from $Repository. $($_.Exception.Message)"
+        if (-not (Test-GitHubCLIAuthentication)) {
+            Stop-Install "could not download release $Tag from $Repository anonymously. $(Get-GitHubCLIFallbackHint)"
+        }
+        & gh release download $Tag --repo $Repository --pattern $AssetName --pattern SHA256SUMS --dir $TempRoot --clobber *> $null
+        if ($LASTEXITCODE -ne 0) {
+            Stop-Install "could not download release $Tag from $Repository with GitHub CLI. $(Get-GitHubCLIFallbackHint)"
+        }
     } finally {
         $ProgressPreference = $SavedProgressPreference
     }

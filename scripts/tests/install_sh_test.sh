@@ -49,12 +49,64 @@ while [ "$#" -gt 0 ]; do
     *) url=$1; shift ;;
   esac
 done
+if [ "${MOCK_CURL_FAIL:-false}" = true; then
+  exit 22
+fi
 case "$url" in
-  *api.github.com*/releases*) printf '[{"tag_name":"%s","draft":false}]\n' "${MOCK_RELEASE_TAG:-v1-prerelease}" >"$destination" ;;
+  *api.github.com*/releases*)
+    if [ "${MOCK_PUBLIC_MULTI:-false}" = true ]; then
+      printf '[\n{"tag_name":"v1-prerelease","draft":false},\n{"tag_name":"v0-older","draft":false}\n]\n' >"$destination"
+    else
+      printf '[{"tag_name":"%s","draft":false}]\n' "${MOCK_RELEASE_TAG:-v1-prerelease}" >"$destination"
+    fi
+    ;;
   *) cp "$MOCK_RELEASE_DIR/${url##*/}" "$destination" ;;
 esac
 EOF
-chmod +x "$MOCK_BIN/uname" "$MOCK_BIN/curl"
+
+cat >"$MOCK_BIN/gh" <<'EOF'
+#!/bin/sh
+set -eu
+case "$1" in
+  auth)
+    [ "${MOCK_GH_AUTH:-false}" = true ]
+    ;;
+  api)
+    [ "${MOCK_GH_AUTH:-false}" = true ]
+    [ "$2" = 'repos/VAS-99-99/zapier-cli/releases?per_page=20' ]
+    if [ "${3:-}" = --jq ]; then
+      [ "${4:-}" = '[.[] | select(.draft == false)][0].tag_name // empty' ]
+      printf '%s\n' "${MOCK_RELEASE_TAG:-v1-prerelease}"
+    else
+      printf '[{"tag_name":"v999-draft","draft":true},{"tag_name":"%s","draft":false},{"tag_name":"v0-older","draft":false}]' "${MOCK_RELEASE_TAG:-v1-prerelease}"
+    fi
+    ;;
+  release)
+    shift
+    [ "$1" = download ]
+    shift
+    tag=$1
+    shift
+    dir=""
+    patterns=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --repo) shift 2 ;;
+        --pattern) patterns="$patterns $2"; shift 2 ;;
+        --dir) dir=$2; shift 2 ;;
+        --clobber) shift ;;
+        *) exit 2 ;;
+      esac
+    done
+    [ "$tag" = "${MOCK_RELEASE_TAG:-v1-prerelease}" ]
+    for pattern in $patterns; do
+      cp "$MOCK_RELEASE_DIR/$pattern" "$dir/$pattern"
+    done
+    ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod +x "$MOCK_BIN/uname" "$MOCK_BIN/curl" "$MOCK_BIN/gh"
 
 printf '#!/bin/sh\nprintf "zapier-pp-cli v1-prerelease\\n"\n' >"$RELEASE_DIR/payload/zapier-pp-cli"
 printf '#!/bin/sh\nprintf "new mcp\\n"\n' >"$RELEASE_DIR/payload/zapier-pp-mcp"
@@ -73,11 +125,26 @@ public_verify_output=$(PATH="$TEST_PATH" MOCK_RELEASE_DIR="$RELEASE_DIR" \
   sh "$REPO_ROOT/install.sh" --verify-only 2>&1)
 assert_contains "$public_verify_output" "Verified release v1-prerelease (CLI version v1-prerelease); no files were installed."
 
+public_multiline_output=$(PATH="$TEST_PATH" MOCK_PUBLIC_MULTI=true MOCK_RELEASE_DIR="$RELEASE_DIR" \
+  sh "$REPO_ROOT/install.sh" --verify-only 2>&1)
+assert_contains "$public_multiline_output" "Verified release v1-prerelease (CLI version v1-prerelease); no files were installed."
+
+private_verify_output=$(PATH="$TEST_PATH" MOCK_CURL_FAIL=true MOCK_GH_AUTH=true MOCK_RELEASE_DIR="$RELEASE_DIR" \
+  sh "$REPO_ROOT/install.sh" --verify-only 2>&1)
+assert_contains "$private_verify_output" "Verified release v1-prerelease (CLI version v1-prerelease); no files were installed."
+
 cp "$RELEASE_DIR/SHA256SUMS" "$RELEASE_DIR/SHA256SUMS.good"
 printf '%064d  %s\n' 0 zapier-cli_linux_x86_64.tar.gz >"$RELEASE_DIR/SHA256SUMS"
 checksum_output=$(PATH="$TEST_PATH" MOCK_RELEASE_DIR="$RELEASE_DIR" \
   sh "$REPO_ROOT/install.sh" --verify-only 2>&1) && fail "bad checksum unexpectedly succeeded"
 assert_contains "$checksum_output" "checksum verification failed"
+FALLBACK_INSTALL_DIR="$TEST_ROOT/fallback install"
+mkdir -p "$FALLBACK_INSTALL_DIR"
+printf 'old cli\n' >"$FALLBACK_INSTALL_DIR/zapier-pp-cli"
+fallback_checksum_output=$(PATH="$TEST_PATH" MOCK_CURL_FAIL=true MOCK_GH_AUTH=true MOCK_RELEASE_DIR="$RELEASE_DIR" \
+  sh "$REPO_ROOT/install.sh" --tag v1-prerelease --install-dir "$FALLBACK_INSTALL_DIR" --no-path-update 2>&1) && fail "bad fallback checksum unexpectedly succeeded"
+assert_contains "$fallback_checksum_output" "checksum verification failed"
+[ "$(cat "$FALLBACK_INSTALL_DIR/zapier-pp-cli")" = "old cli" ] || fail "bad fallback checksum changed the existing installation"
 mv "$RELEASE_DIR/SHA256SUMS.good" "$RELEASE_DIR/SHA256SUMS"
 
 verify_output=$(PATH="$TEST_PATH" MOCK_RELEASE_DIR="$RELEASE_DIR" \

@@ -127,6 +127,12 @@ func ReadFileWithLegacyFallback(primary, legacy string) ([]byte, string, error) 
 }
 
 func AtomicWritePrivateFile(path string, data []byte, fileMode, dirMode os.FileMode) error {
+	return atomicWritePrivateFileWithVerifier(path, data, fileMode, dirMode, VerifyCredsPerms)
+}
+
+// atomicWritePrivateFileWithVerifier keeps the verifier injectable for tests.
+// It checks the empty temporary file before any private bytes reach disk.
+func atomicWritePrivateFileWithVerifier(path string, data []byte, fileMode, dirMode os.FileMode, verify func(string) error) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, dirMode); err != nil {
 		return fmt.Errorf("creating private file dir: %w", err)
@@ -140,6 +146,11 @@ func AtomicWritePrivateFile(path string, data []byte, fileMode, dirMode os.FileM
 		_ = tmp.Close()
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("securing temporary private file: %w", err)
+	}
+	if err := verify(tmpPath); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("validating temporary private file permissions: %w", err)
 	}
 	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()

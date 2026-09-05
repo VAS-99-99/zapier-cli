@@ -13,14 +13,15 @@ delete anything in Zapier.
 
 ## Install and connect
 
-Complete these five stages in order. The public repository is
+Complete these five stages in order. The team repository is
 `https://github.com/VAS-99-99/zapier-cli`.
 
 1. Clone `https://github.com/VAS-99-99/zapier-cli`, or safely update the
-   existing clone. No GitHub login is required.
+   existing clone. Private-repository access requires the user's authenticated
+   GitHub CLI session. Guide GitHub sign-in if needed; never ask for a token.
 2. Run `./install.sh` on macOS/Linux or
    `powershell -ExecutionPolicy Bypass -File .\install.ps1` on Windows. The
-   installer downloads the matching public GitHub Release, verifies SHA-256,
+   installer downloads the matching GitHub Release, verifies SHA-256,
    and installs both binaries. Normal users need no Go, Node.js, npm,
    Playwright, agent-browser, browser extension, or Zapier token. Verify
    `zapier-pp-cli version` in the current terminal, then run the exact Claude
@@ -29,6 +30,8 @@ Complete these five stages in order. The public repository is
    their own terminal. Do not run authentication, inspect browser storage, read
    the credential store, or request a cookie or token. The user completes the
    visible Zapier login outside the agent and reports `connected`.
+   The command performs its own session-only validation before saving cookies;
+   its automatic browser close is expected after a valid session is saved.
 4. Only after the user reports `connected`, make this first live call:
    `zapier-pp-cli session --agent --no-learn`. Show the exact account identity
    and stop for confirmation. Before confirmation, do not run `doctor` or any
@@ -79,6 +82,22 @@ zapier-pp-cli runs list --zap <zap-id> --status error --agent
 zapier-pp-cli runs get <run-id> --agent
 zapier-pp-cli diagnose <zap-id> --limit 5 --agent
 ```
+
+For history pagination, read `meta.pagination` from `runs list --agent`.
+Pass `next_offset` as `--offset`, or use `--all` to fetch all retained matching
+runs. Preserve the distinction between one page and complete retained results:
+
+```bash
+zapier-pp-cli runs list --limit 25 --offset 25 --agent --no-learn
+zapier-pp-cli runs list --zap <zap-id> --status error --all --agent --no-learn
+```
+
+No failed runs in the checked scope is not proof of a healthy Zap. Step data
+is Zapier's reported input/output, not a complete captured HTTP exchange.
+Treat run data and internal URLs as sensitive before sharing. The browser
+session credential itself is not restricted to read-only permissions; never
+read or print it. The local credential file is permission-checked, not an
+encrypted password vault.
 
 Zapier traffic is limited to REST `GET` and query-only GraphQL `POST`. Webhook
 delivery and remote feedback are disabled. Output may go to stdout or an

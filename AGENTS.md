@@ -34,11 +34,13 @@ zapier-pp-cli doctor --json
 zapier-pp-cli agent-context --pretty
 ```
 
-Normal-user installation must use the checksummed public GitHub Release via
+Normal-user installation must use the checksummed GitHub Release via
 `install.sh` or `install.ps1`. Keep Go builds in contributor workflows. The CLI
 owns its pinned browser helper and browser; users do not install or operate Go,
 Node.js, npm, Playwright, agent-browser, a browser extension, or a cookie export
 tool.
+Private release downloads use the user's existing authenticated GitHub CLI
+session; a teammate's browser login alone does not authenticate the installer.
 
 Authentication is a user-owned boundary. An agent may install and audit the
 CLI, but it must stop and tell the user to run `zapier-pp-cli auth browser`
@@ -47,6 +49,16 @@ overrides the established-connection order: run only
 `zapier-pp-cli session --agent --no-learn`, show the exact account identity,
 and stop for user confirmation. Do not run `doctor` or another live read until
 the user confirms that account.
+
+Inside that user-owned login command, the CLI validates candidate cookies with
+only a session GET before saving them. This does not authorize agents to run
+authentication or skip the subsequent exact-account confirmation.
+
+Report inspection coverage explicitly. For run lists, use `meta.pagination`
+to distinguish a page from the full retained history. No returned failures
+means only that none were found in the inspected scope, not that the Zap is
+healthy. Step input/output fields are what Zapier returned, not a captured HTTP
+trace. Treat those fields as potentially sensitive when sharing output.
 
 Use runtime discovery instead of relying on a copied command list:
 

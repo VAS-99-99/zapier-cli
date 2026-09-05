@@ -24,8 +24,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  windows-production:
+    name: Windows PowerShell 5.1 production gate
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Exercise installer under Windows PowerShell 5.1
+        shell: powershell
+        run: .\scripts\tests\windows_production_test.ps1
+
   release:
     name: Build, verify, and publish
+    needs: windows-production
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

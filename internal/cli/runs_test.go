@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -156,5 +157,132 @@ func TestRuns_ValidateBeforeNetworkAndAddLiveMeta(t *testing.T) {
 	out, err = runCLI(t, srv2.URL, "--agent", "runs", "get", "run-d")
 	if err != nil || !strings.Contains(squashJSON(out), `"source":"live"`) {
 		t.Fatalf("runs get agent output lacks live metadata: err=%v out=%s", err, out)
+	}
+}
+
+func TestRunsList_RejectsNullOrMissingReportingData(t *testing.T) {
+	for _, body := range []string{
+		`{}`,
+		`{"data":null}`,
+		`{"data":{}}`,
+		`{"data":{"zapRuns":null}}`,
+		`{"data":{"zapRuns":{"edges":null,"totalCount":0}}}`,
+		`{"data":{"zapRuns":{"edges":[]}}}`,
+		`{"data":{"zapRuns":{"edges":[{"id":"run-a"}],"totalCount":1}}}`,
+		`{"data":{"zapRuns":{"edges":[{"id":"run-a","status":"error"},{"id":"run-b","status":"error"}],"totalCount":1}}}`,
+	} {
+		t.Run(body, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/v4/session" {
+					_, _ = io.WriteString(w, `{"current_account_id":77}`)
+					return
+				}
+				_, _ = io.WriteString(w, body)
+			}))
+			t.Cleanup(srv.Close)
+			if _, err := runCLI(t, srv.URL, "runs", "list"); err == nil {
+				t.Fatal("malformed reporting response must fail closed")
+			}
+		})
+	}
+}
+
+func TestRunsGet_RejectsMalformedRunDetail(t *testing.T) {
+	for _, body := range []string{
+		`{}`,
+		`{"data":null}`,
+		`{"data":{}}`,
+		`{"data":{"zapRun":{"id":"run-a","status":"success"}}}`,
+		`{"data":{"zapRun":{"id":"run-a","steps":[]}}}`,
+		`{"data":{"zapRun":{"id":"run-a","status":"success","steps":null}}}`,
+		`{"data":{"zapRun":{"id":"run-a","status":"success","steps":[{"title":"Step"}]}}}`,
+	} {
+		t.Run(body, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.WriteString(w, body)
+			}))
+			t.Cleanup(srv.Close)
+			if _, err := runCLI(t, srv.URL, "runs", "get", "run-a"); err == nil {
+				t.Fatal("malformed run detail must fail closed")
+			}
+		})
+	}
+}
+
+func TestRunsGet_NullRunDetailIsNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"data":{"zapRun":null}}`)
+	}))
+	t.Cleanup(srv.Close)
+	_, err := runCLI(t, srv.URL, "runs", "get", "run-a")
+	if err == nil || ExitCode(err) != 3 {
+		t.Fatalf("null run detail must be not found, got %v", err)
+	}
+}
+
+func TestRunsList_OffsetAllAndAgentPagination(t *testing.T) {
+	var offsets []int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v4/session" {
+			_, _ = io.WriteString(w, `{"current_account_id":77}`)
+			return
+		}
+		var req graphqlRequest
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		offset := int(req.Variables["offset"].(float64))
+		offsets = append(offsets, offset)
+		if offset == 2 {
+			_, _ = io.WriteString(w, `{"data":{"zapRuns":{"edges":[{"id":"run-c","status":"success"},{"id":"run-d","status":"error"}],"totalCount":5}}}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"data":{"zapRuns":{"edges":[{"id":"run-e","status":"success"}],"totalCount":5}}}`)
+	}))
+	t.Cleanup(srv.Close)
+
+	out, err := runCLI(t, srv.URL, "--agent", "runs", "list", "--offset", "2", "--all", "--limit", "2")
+	if err != nil {
+		t.Fatalf("runs list: %v\n%s", err, out)
+	}
+	if got := strings.Join([]string{strconv.Itoa(offsets[0]), strconv.Itoa(offsets[1])}, ","); got != "2,4" {
+		t.Fatalf("offsets = %s, want 2,4", got)
+	}
+	for _, want := range []string{`"results":[{`, `"offset":2`, `"returned":3`, `"total_count":5`, `"has_more":false`, `"next_offset":null`} {
+		if !strings.Contains(squashJSON(out), want) {
+			t.Errorf("output missing %s: %s", want, out)
+		}
+	}
+}
+
+func TestRunsList_AllFailsClosedOnRepeatedPage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v4/session" {
+			_, _ = io.WriteString(w, `{"current_account_id":77}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"data":{"zapRuns":{"edges":[{"id":"run-a","status":"error"}],"totalCount":2}}}`)
+	}))
+	t.Cleanup(srv.Close)
+	if _, err := runCLI(t, srv.URL, "runs", "list", "--all", "--limit", "1"); err == nil || !strings.Contains(err.Error(), "repeated") {
+		t.Fatalf("repeated page must fail closed, got %v", err)
+	}
+}
+
+func TestRunsList_AllFailsClosedOnOverlappingShiftedPage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v4/session" {
+			_, _ = io.WriteString(w, `{"current_account_id":77}`)
+			return
+		}
+		var req graphqlRequest
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		if req.Variables["offset"].(float64) == 0 {
+			_, _ = io.WriteString(w, `{"data":{"zapRuns":{"edges":[{"id":"run-a","status":"error"},{"id":"run-b","status":"error"}],"totalCount":4}}}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"data":{"zapRuns":{"edges":[{"id":"run-b","status":"success"},{"id":"run-c","status":"error"}],"totalCount":4}}}`)
+	}))
+	t.Cleanup(srv.Close)
+	if _, err := runCLI(t, srv.URL, "runs", "list", "--all", "--limit", "2"); err == nil || !strings.Contains(err.Error(), "history changed") {
+		t.Fatalf("overlapping shifted page must fail closed, got %v", err)
 	}
 }

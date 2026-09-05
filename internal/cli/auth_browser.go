@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,6 +37,9 @@ const (
 	agentBrowserInstallTimeout        = 5 * time.Minute
 	agentBrowserCommandTimeout        = 30 * time.Second
 	browserConnectTimeout             = 5 * time.Minute
+	browserSessionVerifyTimeout       = 5 * time.Second
+	browserSessionVerifyURL           = "https://zapier.com/api/v4/session"
+	browserSessionMaxResponseBytes    = 1 << 20
 	agentBrowserSessionPrefix         = "zapier-pp-auth"
 	agentBrowserManagedDirectory      = "browser-tools"
 	agentBrowserPersistentProfile     = "browser-profile"
@@ -48,16 +52,17 @@ var zapierAPIPaths = []string{
 }
 
 var (
-	browserRuntimeGOOS     = runtime.GOOS
-	browserRuntimeGOARCH   = runtime.GOARCH
-	browserUserConfigDir   = os.UserConfigDir
-	browserUserCacheDir    = os.UserCacheDir
-	browserPollInterval    = 500 * time.Millisecond
-	ensureAgentBrowserTool = ensurePinnedAgentBrowser
-	runAgentBrowserCommand = execAgentBrowserCommand
-	runAgentBrowserOpen    = execAgentBrowserOpen
-	newAgentBrowserSession = makeAgentBrowserSessionName
-	agentBrowserHTTPClient = &http.Client{Timeout: 2 * time.Minute}
+	browserRuntimeGOOS       = runtime.GOOS
+	browserRuntimeGOARCH     = runtime.GOARCH
+	browserUserConfigDir     = os.UserConfigDir
+	browserUserCacheDir      = os.UserCacheDir
+	browserPollInterval      = 500 * time.Millisecond
+	ensureAgentBrowserTool   = ensurePinnedAgentBrowser
+	runAgentBrowserCommand   = execAgentBrowserCommand
+	runAgentBrowserOpen      = execAgentBrowserOpen
+	newAgentBrowserSession   = makeAgentBrowserSessionName
+	agentBrowserHTTPClient   = &http.Client{Timeout: 2 * time.Minute}
+	browserSessionHTTPClient = &http.Client{Timeout: browserSessionVerifyTimeout}
 )
 
 type agentBrowserRelease struct {
@@ -208,24 +213,28 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 			if err != nil {
 				return configErr(err)
 			}
-			cfg.AuthHeaderVal = ""
-			if err := cfg.SaveCredential(cookieHeader); err != nil {
-				return configErr(fmt.Errorf("saving browser credential: %w", err))
-			}
-
 			closeCtx, cancelClose := context.WithTimeout(cmd.Context(), 10*time.Second)
 			closeResult, closeErr := runAgentBrowserCommand(closeCtx, binaryPath, "--config", browserConfigPath, "--namespace", namespaceName, "--session", sessionName, "close", "--json")
 			cancelClose()
-			if closeErr != nil || closeResult.Truncated {
-				return authErr(errors.New("the private sign-in browser could not be closed safely; run auth logout before retrying"))
+			var closeData json.RawMessage
+			if closeErr != nil || closeResult.Truncated || decodeAgentBrowserData(closeResult.Stdout, &closeData) != nil {
+				return authErr(errors.New("the private sign-in browser could not be closed safely; close the window and run auth browser again"))
 			}
 			sessionTouched = false
 			if err := removeManagedAgentBrowserProfile(profilePath); err != nil {
 				return configErr(fmt.Errorf("clearing the temporary browser profile: %w", err))
 			}
+			if loginCtx.Err() != nil {
+				return authErr(errors.New("Zapier sign-in was canceled or timed out before saving; run auth browser again"))
+			}
+			cfg.AuthHeaderVal = ""
+			if err := cfg.SaveCredential(cookieHeader); err != nil {
+				return configErr(fmt.Errorf("saving browser credential: %w", err))
+			}
 
 			out := map[string]any{
 				"credential_saved":       true,
+				"session_validated":      true,
 				"verified":               false,
 				"verification":           "pending account check",
 				"browser":                "Chrome",
@@ -601,25 +610,111 @@ func ensureAgentBrowserLoginPage(ctx context.Context, binaryPath, configPath, se
 }
 
 func waitForAgentBrowserLogin(ctx context.Context, binaryPath, configPath, sessionName string) (string, int, error) {
-	ticker := time.NewTicker(browserPollInterval)
-	defer ticker.Stop()
+	delay := browserPollInterval
+	lastFailure := "finish signing in, including any verification challenge"
 	for {
+		if ctx.Err() != nil {
+			return "", 0, browserLoginWaitError(ctx, lastFailure)
+		}
 		currentURL, err := agentBrowserCurrentURL(ctx, binaryPath, configPath, sessionName)
 		if err == nil && isSignedInZapierURL(currentURL) {
 			cookies, cookieErr := agentBrowserCookies(ctx, binaryPath, configPath, sessionName)
 			if cookieErr == nil {
 				header, count := zapierCookieHeader(cookies)
 				if count > 0 {
-					return header, count, nil
+					if err := verifyAgentBrowserSession(ctx, header); err == nil {
+						return header, count, nil
+					} else {
+						lastFailure = err.Error()
+					}
 				}
 			}
 		}
+		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
-			return "", 0, errors.New("timed out waiting for Zapier sign-in; run auth browser again to continue")
-		case <-ticker.C:
+			timer.Stop()
+			return "", 0, browserLoginWaitError(ctx, lastFailure)
+		case <-timer.C:
+		}
+		if delay < 2*time.Second {
+			delay *= 2
+			if delay > 2*time.Second {
+				delay = 2 * time.Second
+			}
 		}
 	}
+}
+
+func browserLoginWaitError(ctx context.Context, reason string) error {
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return fmt.Errorf("Zapier sign-in canceled; %s; run auth browser again", reason)
+	}
+	return fmt.Errorf("timed out waiting for Zapier sign-in; %s; run auth browser again", reason)
+}
+
+// Validate the user-owned login in memory. This deliberately bypasses the
+// configurable API client, cache, output and learning paths. Never include
+// transport errors or response bytes in an error: either can contain secrets.
+func verifyAgentBrowserSession(ctx context.Context, cookieHeader string) error {
+	verifyCtx, cancel := context.WithTimeout(ctx, browserSessionVerifyTimeout)
+	defer cancel()
+	request, err := http.NewRequestWithContext(verifyCtx, http.MethodGet, browserSessionVerifyURL, nil)
+	if err != nil {
+		return errors.New("could not prepare the Zapier session check")
+	}
+	request.Header.Set("Cookie", cookieHeader)
+	request.Header.Set("Accept", "application/json")
+	client := *browserSessionHTTPClient
+	client.Timeout = browserSessionVerifyTimeout
+	client.Jar = nil
+	// Even same-host redirects could lead outside the one permitted endpoint.
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	response, err := client.Do(request)
+	if err != nil {
+		return errors.New("could not verify the Zapier session; check the internet connection and finish signing in")
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+		return errors.New("the Zapier session is expired or incomplete; finish signing in")
+	}
+	if response.StatusCode != http.StatusOK {
+		return errors.New("Zapier did not confirm the session; finish signing in and retry")
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, browserSessionMaxResponseBytes+1))
+	if err != nil || len(body) > browserSessionMaxResponseBytes {
+		return errors.New("could not read the Zapier session check; retry signing in")
+	}
+	var session struct {
+		LoggedIn       *bool           `json:"is_logged_in"`
+		Temporary      *bool           `json:"is_temporary"`
+		Masquerade     *bool           `json:"is_masquerade"`
+		CurrentAccount json.RawMessage `json:"current_account_id"`
+		ID             json.RawMessage `json:"id"`
+		UserID         json.RawMessage `json:"user_id"`
+	}
+	if json.Unmarshal(body, &session) != nil {
+		return errors.New("Zapier returned an invalid session check; retry signing in")
+	}
+	if session.LoggedIn == nil || !*session.LoggedIn || session.Temporary == nil || *session.Temporary || session.Masquerade == nil || *session.Masquerade ||
+		!browserSessionPositiveID(session.CurrentAccount) || (!browserSessionPositiveID(session.ID) && !browserSessionPositiveID(session.UserID)) {
+		return errors.New("Zapier has not confirmed a complete, non-temporary account session; finish signing in")
+	}
+	if verifyCtx.Err() != nil {
+		return errors.New("Zapier session verification was canceled or timed out; retry signing in")
+	}
+	return nil
+}
+
+func browserSessionPositiveID(raw json.RawMessage) bool {
+	value := strings.TrimSpace(string(raw))
+	if strings.HasPrefix(value, `"`) {
+		if json.Unmarshal(raw, &value) != nil {
+			return false
+		}
+	}
+	id, err := strconv.ParseInt(value, 10, 64)
+	return err == nil && id > 0
 }
 
 func agentBrowserCurrentURL(ctx context.Context, binaryPath, configPath, sessionName string) (string, error) {

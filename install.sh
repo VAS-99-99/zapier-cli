@@ -11,7 +11,7 @@ TEMP_DIR=""
 
 usage() {
   cat <<'EOF'
-Install the prebuilt Zapier read-only CLI from its public GitHub repository.
+Install the prebuilt Zapier read-only CLI from its GitHub repository.
 
 Usage: ./install.sh [options]
 
@@ -22,7 +22,8 @@ Options:
   --no-path-update   Do not add the install directory to a shell profile.
   -h, --help         Show this help.
 
-Requires `curl` or `wget`. No GitHub login is required.
+Uses `curl` or `wget` for anonymous downloads. For a private release, install
+GitHub CLI and sign in yourself with `gh auth login`.
 EOF
 }
 
@@ -47,6 +48,14 @@ download() {
   else
     fail "curl or wget is required to download the public release"
   fi
+}
+
+github_cli_authenticated() {
+  command -v gh >/dev/null 2>&1 && gh auth status --hostname github.com >/dev/null 2>&1
+}
+
+github_cli_hint() {
+  printf '%s' 'Run "gh auth login" and retry, or download the release archive and SHA256SUMS manually from GitHub.'
 }
 
 read_cli_version() {
@@ -121,10 +130,19 @@ trap 'exit 130' HUP INT TERM
 
 if [ -z "$TAG" ]; then
   RELEASES_JSON="$TEMP_DIR/releases.json"
-  download "https://api.github.com/repos/$REPOSITORY/releases?per_page=20" "$RELEASES_JSON" ||
-    fail "could not resolve the newest release in $REPOSITORY"
-  TAG=$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$RELEASES_JSON" | head -n 1)
-  [ -n "$TAG" ] || fail "the public repository does not have a published release"
+  if ! download "https://api.github.com/repos/$REPOSITORY/releases?per_page=20" "$RELEASES_JSON"; then
+    if github_cli_authenticated; then
+      TAG=$(gh api "repos/$REPOSITORY/releases?per_page=20" --jq '[.[] | select(.draft == false)][0].tag_name // empty' 2>/dev/null) ||
+        fail "could not resolve the newest release in $REPOSITORY with GitHub CLI. $(github_cli_hint)"
+      [ -n "$TAG" ] || fail "the repository $REPOSITORY does not have a published release"
+    else
+      fail "could not resolve the newest release in $REPOSITORY anonymously. $(github_cli_hint)"
+    fi
+  fi
+  if [ -z "$TAG" ]; then
+    TAG=$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$RELEASES_JSON" | head -n 1)
+    [ -n "$TAG" ] || fail "the repository $REPOSITORY does not have a published release"
+  fi
 fi
 
 case "$TAG" in
@@ -139,7 +157,12 @@ printf 'Downloading %s (%s)...\n' "$ASSET_NAME" "$TAG"
 RELEASE_ROOT="https://github.com/$REPOSITORY/releases/download/$TAG"
 if ! download "$RELEASE_ROOT/$ASSET_NAME" "$TEMP_DIR/$ASSET_NAME" ||
    ! download "$RELEASE_ROOT/SHA256SUMS" "$TEMP_DIR/SHA256SUMS"; then
-  fail "could not download release $TAG from $REPOSITORY"
+  if github_cli_authenticated; then
+    gh release download "$TAG" --repo "$REPOSITORY" --pattern "$ASSET_NAME" --pattern SHA256SUMS --dir "$TEMP_DIR" --clobber >/dev/null 2>&1 ||
+      fail "could not download release $TAG from $REPOSITORY with GitHub CLI. $(github_cli_hint)"
+  else
+    fail "could not download release $TAG from $REPOSITORY anonymously. $(github_cli_hint)"
+  fi
 fi
 
 ARCHIVE_PATH="$TEMP_DIR/$ASSET_NAME"

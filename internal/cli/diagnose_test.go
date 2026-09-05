@@ -68,7 +68,7 @@ func diagnoseFixtureServer(t *testing.T, detailStatus int, detailBody string) (*
 			var req graphqlRequest
 			_ = json.NewDecoder(r.Body).Decode(&req)
 			if req.OperationName == "ZapRuns" {
-				_, _ = io.WriteString(w, `{"data":{"zapRuns":{"edges":[{"id":"run-a"}],"totalCount":1}}}`)
+				_, _ = io.WriteString(w, `{"data":{"zapRuns":{"edges":[{"id":"run-a","status":"error"}],"totalCount":1}}}`)
 				return
 			}
 			w.WriteHeader(detailStatus)
@@ -82,7 +82,7 @@ func diagnoseFixtureServer(t *testing.T, detailStatus int, detailBody string) (*
 }
 
 func TestDiagnose_ReportsFailureWithLiveMeta(t *testing.T) {
-	detail := `{"data":{"zapRun":{"startTime":"2000-01-02T03:04:05Z","steps":[{"title":"Send record","app":"Fixture app","status":"error","error":{"title":"fixture failure"}}]}}}`
+	detail := `{"data":{"zapRun":{"id":"run-a","status":"error","startTime":"2000-01-02T03:04:05Z","steps":[{"title":"Send record","app":"Fixture app","status":"error","error":{"title":"fixture failure"}}]}}}`
 	srv, log := diagnoseFixtureServer(t, http.StatusOK, detail)
 	out, err := runCLI(t, srv.URL, "--agent", "diagnose", "Fixture zap", "--limit", "1")
 	if err != nil {
@@ -152,10 +152,10 @@ func TestDiagnose_NumericIDCanInspectDeletedZapHistory(t *testing.T) {
 			var req graphqlRequest
 			_ = json.NewDecoder(r.Body).Decode(&req)
 			if req.OperationName == "ZapRuns" {
-				_, _ = io.WriteString(w, `{"data":{"zapRuns":{"edges":[{"id":"historical-run","zap":{"id":"99"}}],"totalCount":1}}}`)
+				_, _ = io.WriteString(w, `{"data":{"zapRuns":{"edges":[{"id":"historical-run","status":"error","zap":{"id":"99"}}],"totalCount":1}}}`)
 				return
 			}
-			_, _ = io.WriteString(w, `{"data":{"zapRun":{"startTime":"2000-01-02T03:04:05Z","steps":[{"title":"Historical step","app":"Fixture app","status":"error","error":{"title":"fixture failure"}}]}}}`)
+			_, _ = io.WriteString(w, `{"data":{"zapRun":{"id":"historical-run","status":"error","startTime":"2000-01-02T03:04:05Z","steps":[{"title":"Historical step","app":"Fixture app","status":"error","error":{"title":"fixture failure"}}]}}}`)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -210,7 +210,7 @@ func TestDiagnose_FailsClosedOnBadDetail(t *testing.T) {
 		{"http", http.StatusBadRequest, `{"error":"fixture"}`},
 		{"graphql", http.StatusOK, `{"errors":[{"message":"fixture"}]}`},
 		{"null", http.StatusOK, `{"data":{"zapRun":null}}`},
-		{"no errored step", http.StatusOK, `{"data":{"zapRun":{"steps":[{"title":"Done","status":"success"}]}}}`},
+		{"no errored step", http.StatusOK, `{"data":{"zapRun":{"id":"run-a","status":"success","steps":[{"title":"Done","status":"success"}]}}}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -223,6 +223,31 @@ func TestDiagnose_FailsClosedOnBadDetail(t *testing.T) {
 				t.Fatalf("exit code = %d, want API/not-found", code)
 			}
 		})
+	}
+}
+
+func TestDiagnose_FailsClosedOnMalformedReportingData(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case zapsEndpoint:
+			writeZapPage(w, 1, "", zapSummary{ID: 41, Title: "Fixture zap"})
+		case "/api/v4/session":
+			_, _ = io.WriteString(w, `{"current_account_id":77}`)
+		case "/api/reporting/graphql":
+			_, _ = io.WriteString(w, `{"data":{"zapRuns":null}}`)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	if _, err := runCLI(t, srv.URL, "diagnose", "41", "--limit", "1"); err == nil || !strings.Contains(err.Error(), "zapRuns") {
+		t.Fatalf("malformed reporting history must fail closed, got %v", err)
+	}
+}
+
+func TestDiagnose_FailsClosedOnMalformedRunDetail(t *testing.T) {
+	srv, _ := diagnoseFixtureServer(t, http.StatusOK, `{"data":{"zapRun":{"id":"run-a","status":"error","steps":[{"title":"Send record"}]}}}`)
+	if _, err := runCLI(t, srv.URL, "diagnose", "41", "--limit", "1"); err == nil || !strings.Contains(err.Error(), "run-a") {
+		t.Fatalf("malformed run detail must fail closed, got %v", err)
 	}
 }
 

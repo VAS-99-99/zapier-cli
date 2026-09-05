@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -56,6 +57,171 @@ type runDetail struct {
 	ZapID     string    `json:"zap_id"`
 	ZapTitle  string    `json:"zap_title"`
 	Steps     []runStep `json:"steps"`
+}
+
+const (
+	maxRunsPageSize             = 100
+	maxReportingPaginationPages = 10000
+)
+
+type reportingRunEdge struct {
+	ID        string `json:"id"`
+	StartTime string `json:"startTime"`
+	Status    string `json:"status"`
+	Zap       *struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	} `json:"zap"`
+}
+
+type reportingRunsPage struct {
+	Edges      []reportingRunEdge
+	TotalCount int
+}
+
+// parseReportingRunDetail rejects partial GraphQL data rather than presenting
+// a missing run or missing steps as a successful empty detail. A null zapRun
+// is the one expected absence and is returned as found=false.
+func parseReportingRunDetail(raw json.RawMessage) (detail runDetail, found bool, err error) {
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &root); err != nil {
+		return runDetail{}, false, err
+	}
+	data, ok := root["data"]
+	if !ok || isNullJSON(data) {
+		return runDetail{}, false, fmt.Errorf("reporting response has no data")
+	}
+	var dataObject map[string]json.RawMessage
+	if err := json.Unmarshal(data, &dataObject); err != nil {
+		return runDetail{}, false, fmt.Errorf("reporting response data is not an object")
+	}
+	zapRun, ok := dataObject["zapRun"]
+	if !ok {
+		return runDetail{}, false, fmt.Errorf("reporting response has no zapRun")
+	}
+	if isNullJSON(zapRun) {
+		return runDetail{}, false, nil
+	}
+	var runObject map[string]json.RawMessage
+	if err := json.Unmarshal(zapRun, &runObject); err != nil {
+		return runDetail{}, false, fmt.Errorf("reporting response zapRun is not an object")
+	}
+	if detail.ID, err = requiredReportingString(runObject, "id"); err != nil {
+		return runDetail{}, false, err
+	}
+	if detail.Status, err = requiredReportingString(runObject, "status"); err != nil {
+		return runDetail{}, false, err
+	}
+	if startTime, ok := runObject["startTime"]; ok && !isNullJSON(startTime) {
+		if err := json.Unmarshal(startTime, &detail.StartTime); err != nil {
+			return runDetail{}, false, fmt.Errorf("reporting response startTime is invalid")
+		}
+	}
+	steps, ok := runObject["steps"]
+	if !ok || isNullJSON(steps) {
+		return runDetail{}, false, fmt.Errorf("reporting response has no steps")
+	}
+	var stepValues []json.RawMessage
+	if err := json.Unmarshal(steps, &stepValues); err != nil {
+		return runDetail{}, false, fmt.Errorf("reporting response steps are invalid: %w", err)
+	}
+	detail.Steps = make([]runStep, 0, len(stepValues))
+	for i, stepValue := range stepValues {
+		if isNullJSON(stepValue) {
+			return runDetail{}, false, fmt.Errorf("reporting response step %d is null", i)
+		}
+		var stepObject map[string]json.RawMessage
+		if err := json.Unmarshal(stepValue, &stepObject); err != nil {
+			return runDetail{}, false, fmt.Errorf("reporting response step %d is invalid", i)
+		}
+		if _, err := requiredReportingString(stepObject, "title"); err != nil {
+			return runDetail{}, false, fmt.Errorf("reporting response step %d: %w", i, err)
+		}
+		if _, err := requiredReportingString(stepObject, "status"); err != nil {
+			return runDetail{}, false, fmt.Errorf("reporting response step %d: %w", i, err)
+		}
+		var step runStep
+		if err := json.Unmarshal(stepValue, &step); err != nil {
+			return runDetail{}, false, fmt.Errorf("reporting response step %d is invalid: %w", i, err)
+		}
+		detail.Steps = append(detail.Steps, step)
+	}
+	if zap, ok := runObject["zap"]; ok && !isNullJSON(zap) {
+		var zapObject struct {
+			ID    string `json:"id"`
+			Title string `json:"title"`
+		}
+		if err := json.Unmarshal(zap, &zapObject); err != nil {
+			return runDetail{}, false, fmt.Errorf("reporting response zap is invalid")
+		}
+		detail.ZapID, detail.ZapTitle = zapObject.ID, zapObject.Title
+	}
+	return detail, true, nil
+}
+
+func requiredReportingString(object map[string]json.RawMessage, field string) (string, error) {
+	raw, ok := object[field]
+	if !ok || isNullJSON(raw) {
+		return "", fmt.Errorf("reporting response is missing %s", field)
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil || strings.TrimSpace(value) == "" {
+		return "", fmt.Errorf("reporting response has invalid %s", field)
+	}
+	return value, nil
+}
+
+// parseReportingRunsPage is deliberately strict: GraphQL's nullable response
+// branches must not be mistaken for an empty history page.
+func parseReportingRunsPage(raw json.RawMessage) (reportingRunsPage, error) {
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &root); err != nil {
+		return reportingRunsPage{}, err
+	}
+	data, ok := root["data"]
+	if !ok || isNullJSON(data) {
+		return reportingRunsPage{}, fmt.Errorf("reporting response has no data")
+	}
+	var dataObject map[string]json.RawMessage
+	if err := json.Unmarshal(data, &dataObject); err != nil {
+		return reportingRunsPage{}, fmt.Errorf("reporting response data is not an object")
+	}
+	zapRuns, ok := dataObject["zapRuns"]
+	if !ok || isNullJSON(zapRuns) {
+		return reportingRunsPage{}, fmt.Errorf("reporting response has no zapRuns")
+	}
+	var runsObject map[string]json.RawMessage
+	if err := json.Unmarshal(zapRuns, &runsObject); err != nil {
+		return reportingRunsPage{}, fmt.Errorf("reporting response zapRuns is not an object")
+	}
+	edges, ok := runsObject["edges"]
+	if !ok || isNullJSON(edges) {
+		return reportingRunsPage{}, fmt.Errorf("reporting response has no edges")
+	}
+	total, ok := runsObject["totalCount"]
+	if !ok || isNullJSON(total) {
+		return reportingRunsPage{}, fmt.Errorf("reporting response has no totalCount")
+	}
+	var page reportingRunsPage
+	if err := json.Unmarshal(edges, &page.Edges); err != nil {
+		return reportingRunsPage{}, fmt.Errorf("reporting response edges are invalid: %w", err)
+	}
+	if err := json.Unmarshal(total, &page.TotalCount); err != nil || page.TotalCount < 0 {
+		return reportingRunsPage{}, fmt.Errorf("reporting response totalCount is invalid")
+	}
+	if page.TotalCount < len(page.Edges) {
+		return reportingRunsPage{}, fmt.Errorf("reporting response totalCount %d is smaller than returned page size %d", page.TotalCount, len(page.Edges))
+	}
+	for i, edge := range page.Edges {
+		if strings.TrimSpace(edge.ID) == "" || strings.TrimSpace(edge.Status) == "" {
+			return reportingRunsPage{}, fmt.Errorf("reporting response edge %d is missing id or status", i)
+		}
+	}
+	return page, nil
+}
+
+func isNullJSON(raw json.RawMessage) bool {
+	return string(bytes.TrimSpace(raw)) == "null"
 }
 
 func newRunsCmd(flags *rootFlags) *cobra.Command {
@@ -146,6 +312,8 @@ func newRunsListCmd(flags *rootFlags) *cobra.Command {
 	var zapID string
 	var status string
 	var limit int
+	var offset int
+	var all bool
 	c := &cobra.Command{
 		Use:   "list",
 		Short: "List recent zap runs, optionally filtered by zap and status",
@@ -154,14 +322,19 @@ func newRunsListCmd(flags *rootFlags) *cobra.Command {
   zapier-pp-cli runs list
   zapier-pp-cli runs list --status error
   zapier-pp-cli runs list --zap 101 --status error
+  zapier-pp-cli runs list --offset 25
+  zapier-pp-cli runs list --all --limit 100
 `, "\n"),
 		Annotations: map[string]string{"mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateDataSourceStrategy(flags, "live"); err != nil {
 				return usageErr(err)
 			}
-			if limit < 1 {
-				return usageErr(fmt.Errorf("--limit must be at least 1"))
+			if limit < 1 || limit > maxRunsPageSize {
+				return usageErr(fmt.Errorf("--limit must be between 1 and %d", maxRunsPageSize))
+			}
+			if offset < 0 {
+				return usageErr(fmt.Errorf("--offset must be at least 0"))
 			}
 			if dryRunOK(flags) {
 				return writeDryRun(cmd.OutOrStdout(), flags, "list runs")
@@ -170,52 +343,66 @@ func newRunsListCmd(flags *rootFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			vars := map[string]any{
-				"accountId": accountID,
-				"limit":     limit,
-				"offset":    0,
-				"sortBy":    "-start_time",
+			results := make([]runSummary, 0, limit)
+			currentOffset := offset
+			totalCount := 0
+			seenRunIDs := make(map[string]struct{})
+			for pageNumber := 0; ; pageNumber++ {
+				if pageNumber >= maxReportingPaginationPages {
+					return apiErr(fmt.Errorf("parsing run list: history pagination exceeded %d pages; retry with a narrower window", maxReportingPaginationPages))
+				}
+				vars := map[string]any{"accountId": accountID, "limit": limit, "offset": currentOffset, "sortBy": "-start_time"}
+				if zapID != "" {
+					vars["zapIds"] = []string{zapID}
+				}
+				if status != "" {
+					vars["status"] = []string{status}
+				}
+				raw, err := callReportingGraphQL(cmd, flags, graphqlRequest{OperationName: "ZapRuns", Variables: vars, Query: zapRunsQuery})
+				if err != nil {
+					return err
+				}
+				page, err := parseReportingRunsPage(raw)
+				if err != nil {
+					return apiErr(fmt.Errorf("parsing run list: %w", err))
+				}
+				totalCount = page.TotalCount
+				if currentOffset+len(page.Edges) < page.TotalCount && len(page.Edges) == 0 {
+					return apiErr(fmt.Errorf("parsing run list: reporting page made no progress at offset %d", currentOffset))
+				}
+				for _, e := range page.Edges {
+					if _, duplicate := seenRunIDs[e.ID]; duplicate {
+						return apiErr(fmt.Errorf("parsing run list: history changed while paging (run %s repeated at offset %d); retry", e.ID, currentOffset))
+					}
+					seenRunIDs[e.ID] = struct{}{}
+					r := runSummary{ID: e.ID, StartTime: e.StartTime, Status: e.Status}
+					if e.Zap != nil {
+						r.ZapID, r.ZapTitle = e.Zap.ID, e.Zap.Title
+					}
+					results = append(results, r)
+				}
+				hasMore := currentOffset+len(page.Edges) < page.TotalCount
+				if !all || !hasMore {
+					break
+				}
+				currentOffset += len(page.Edges)
 			}
-			if zapID != "" {
-				vars["zapIds"] = []string{zapID}
+			hasMore := offset+len(results) < totalCount
+			var nextOffset *int
+			if hasMore {
+				n := offset + len(results)
+				nextOffset = &n
 			}
-			if status != "" {
-				vars["status"] = []string{status}
-			}
-			raw, err := callReportingGraphQL(cmd, flags, graphqlRequest{
-				OperationName: "ZapRuns", Variables: vars, Query: zapRunsQuery,
-			})
-			if err != nil {
-				return err
-			}
-			var parsed struct {
-				Data struct {
-					ZapRuns struct {
-						Edges []struct {
-							ID        string `json:"id"`
-							StartTime string `json:"startTime"`
-							Status    string `json:"status"`
-							Zap       struct {
-								ID    string `json:"id"`
-								Title string `json:"title"`
-							} `json:"zap"`
-						} `json:"edges"`
-						TotalCount int `json:"totalCount"`
-					} `json:"zapRuns"`
-				} `json:"data"`
-			}
-			if err := json.Unmarshal(raw, &parsed); err != nil {
-				return apiErr(fmt.Errorf("parsing run list: %w", err))
-			}
-			results := make([]runSummary, 0, len(parsed.Data.ZapRuns.Edges))
-			for _, e := range parsed.Data.ZapRuns.Edges {
-				results = append(results, runSummary{
-					ID: e.ID, StartTime: e.StartTime, Status: e.Status,
-					ZapID: e.Zap.ID, ZapTitle: e.Zap.Title,
-				})
+			pagination := map[string]any{"offset": offset, "returned": len(results), "total_count": totalCount, "has_more": hasMore, "next_offset": nextOffset}
+			if !all && hasMore {
+				fmt.Fprintln(cmd.ErrOrStderr(), "warning: results truncated; more run history is available. Re-run with --all to fetch every page.")
 			}
 			if !wantsHumanTable(cmd.OutOrStdout(), flags) {
-				return printLiveValue(cmd.OutOrStdout(), results, flags)
+				raw, err := json.Marshal(results)
+				if err != nil {
+					return err
+				}
+				return printOutputWithFlagsMeta(cmd.OutOrStdout(), raw, flags, map[string]any{"source": "live", "pagination": pagination})
 			}
 			for _, r := range results {
 				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\n", r.ID, r.Status, r.StartTime, r.ZapTitle)
@@ -225,7 +412,9 @@ func newRunsListCmd(flags *rootFlags) *cobra.Command {
 	}
 	c.Flags().StringVar(&zapID, "zap", "", "zap ID to filter runs to; see zaps list")
 	c.Flags().StringVar(&status, "status", "", "filter by run status, e.g. success, error, held")
-	c.Flags().IntVar(&limit, "limit", 25, "maximum runs to return")
+	c.Flags().IntVar(&limit, "limit", 25, fmt.Sprintf("runs per page (1-%d)", maxRunsPageSize))
+	c.Flags().IntVar(&offset, "offset", 0, "number of matching runs to skip")
+	c.Flags().BoolVar(&all, "all", false, "fetch every page after --offset")
 	return c
 }
 
@@ -258,30 +447,15 @@ func newRunsGetCmd(flags *rootFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			var parsed struct {
-				Data struct {
-					ZapRun *struct {
-						ID        string `json:"id"`
-						Status    string `json:"status"`
-						StartTime string `json:"startTime"`
-						Zap       struct {
-							ID    string `json:"id"`
-							Title string `json:"title"`
-						} `json:"zap"`
-						Steps []runStep `json:"steps"`
-					} `json:"zapRun"`
-				} `json:"data"`
-			}
-			if err := json.Unmarshal(raw, &parsed); err != nil {
+			detail, found, err := parseReportingRunDetail(raw)
+			if err != nil {
 				return apiErr(fmt.Errorf("parsing run detail: %w", err))
 			}
-			if parsed.Data.ZapRun == nil {
+			if !found {
 				return notFoundErr(fmt.Errorf("run %s not found", runID))
 			}
-			z := parsed.Data.ZapRun
-			detail := runDetail{
-				ID: z.ID, Status: z.Status, StartTime: z.StartTime,
-				ZapID: z.Zap.ID, ZapTitle: z.Zap.Title, Steps: z.Steps,
+			if detail.ID != runID {
+				return apiErr(fmt.Errorf("parsing run detail: reporting response returned run %s for requested run %s", detail.ID, runID))
 			}
 			if !wantsHumanTable(cmd.OutOrStdout(), flags) {
 				return printLiveValue(cmd.OutOrStdout(), detail, flags)

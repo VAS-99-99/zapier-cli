@@ -51,6 +51,7 @@ function Invoke-WebRequest {
         $Headers,
         [switch]$UseBasicParsing
     )
+    if ($env:MOCK_IWR_FAIL -eq 'true') { throw 'anonymous download denied' }
     $Name = [IO.Path]::GetFileName(([Uri]$Uri).AbsolutePath)
     Copy-Item -LiteralPath (Join-Path $env:MOCK_RELEASE_DIR $Name) -Destination $OutFile
 }
@@ -60,7 +61,42 @@ function Invoke-RestMethod {
         [Parameter(Mandatory = $true)]$Uri,
         $Headers
     )
-    [pscustomobject]@{ draft = $false; tag_name = 'v1-prerelease' }
+    if ($env:MOCK_IRM_FAIL -eq 'true') { throw 'anonymous metadata denied' }
+    # Windows PowerShell 5.1 returns a JSON array as one Object[] result from
+    # Invoke-RestMethod. Preserve that shape instead of streaming its members.
+    Write-Output -NoEnumerate ([object[]]@(
+        [pscustomobject]@{ draft = $true; tag_name = 'v999-draft' }
+        [pscustomobject]@{ draft = $false; tag_name = 'v1-prerelease' }
+    ))
+}
+
+function gh {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+    if ($Arguments[0] -eq 'auth') {
+        $global:LASTEXITCODE = if ($env:MOCK_GH_AUTH -eq 'true') { 0 } else { 1 }
+        return
+    }
+    if ($env:MOCK_GH_AUTH -ne 'true') {
+        $global:LASTEXITCODE = 1
+        return
+    }
+    if ($Arguments[0] -eq 'api') {
+        Write-Output '[{"draft":true,"tag_name":"v999-draft"},{"draft":false,"tag_name":"v1-prerelease"}]'
+        $global:LASTEXITCODE = 0
+        return
+    }
+    if ($Arguments[0] -eq 'release' -and $Arguments[1] -eq 'download') {
+        $directory = $Arguments[($Arguments.IndexOf('--dir') + 1)]
+        foreach ($patternIndex in 0..($Arguments.Count - 1)) {
+            if ($Arguments[$patternIndex] -eq '--pattern') {
+                $name = $Arguments[$patternIndex + 1]
+                Copy-Item -LiteralPath (Join-Path $env:MOCK_RELEASE_DIR $name) -Destination (Join-Path $directory $name)
+            }
+        }
+        $global:LASTEXITCODE = 0
+        return
+    }
+    $global:LASTEXITCODE = 1
 }
 
 $InstallerArgs = @{}
@@ -88,11 +124,22 @@ public_verify_output=$(env "$PS_ENV" PROCESSOR_ARCHITECTURE=AMD64 MOCK_RELEASE_D
   pwsh -NoLogo -NoProfile -File "$PS_WRAPPER" -Installer "$REPO_ROOT/install.ps1" -VerifyOnly 2>&1)
 assert_contains "$public_verify_output" "Verified release v1-prerelease (CLI version v1-prerelease); no files were installed."
 
+private_verify_output=$(env "$PS_ENV" PROCESSOR_ARCHITECTURE=AMD64 MOCK_IRM_FAIL=true MOCK_IWR_FAIL=true MOCK_GH_AUTH=true MOCK_RELEASE_DIR="$RELEASE_DIR" \
+  pwsh -NoLogo -NoProfile -File "$PS_WRAPPER" -Installer "$REPO_ROOT/install.ps1" -VerifyOnly 2>&1)
+assert_contains "$private_verify_output" "Verified release v1-prerelease (CLI version v1-prerelease); no files were installed."
+
 cp "$RELEASE_DIR/SHA256SUMS" "$RELEASE_DIR/SHA256SUMS.good"
 printf '%064d  %s\n' 0 zapier-cli_windows_x86_64.zip >"$RELEASE_DIR/SHA256SUMS"
 checksum_output=$(env "$PS_ENV" PROCESSOR_ARCHITECTURE=AMD64 MOCK_RELEASE_DIR="$RELEASE_DIR" \
   pwsh -NoLogo -NoProfile -File "$PS_WRAPPER" -Installer "$REPO_ROOT/install.ps1" -Tag v1-prerelease -VerifyOnly 2>&1) && fail "bad checksum unexpectedly succeeded"
 assert_contains "$checksum_output" "checksum verification failed"
+FALLBACK_INSTALL_DIR="$TEST_ROOT/fallback install"
+mkdir -p "$FALLBACK_INSTALL_DIR"
+printf 'old windows cli\n' >"$FALLBACK_INSTALL_DIR/zapier-pp-cli.exe"
+fallback_checksum_output=$(env "$PS_ENV" PROCESSOR_ARCHITECTURE=AMD64 MOCK_IWR_FAIL=true MOCK_GH_AUTH=true MOCK_RELEASE_DIR="$RELEASE_DIR" \
+  pwsh -NoLogo -NoProfile -File "$PS_WRAPPER" -Installer "$REPO_ROOT/install.ps1" -Tag v1-prerelease -InstallDir "$FALLBACK_INSTALL_DIR" -NoPathUpdate 2>&1) && fail "bad fallback checksum unexpectedly succeeded"
+assert_contains "$fallback_checksum_output" "checksum verification failed"
+[ "$(cat "$FALLBACK_INSTALL_DIR/zapier-pp-cli.exe")" = "old windows cli" ] || fail "bad fallback checksum changed the existing installation"
 mv "$RELEASE_DIR/SHA256SUMS.good" "$RELEASE_DIR/SHA256SUMS"
 
 verify_output=$(env "$PS_ENV" PROCESSOR_ARCHITECTURE=AMD64 MOCK_RELEASE_DIR="$RELEASE_DIR" \
