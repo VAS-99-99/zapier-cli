@@ -193,7 +193,7 @@ try {
         if ($LASTEXITCODE -ne 0) {
             Stop-Test 'credential rollback tests failed'
         }
-        & go test ./internal/cli -run '^(TestAuthBrowser|TestBrowser|TestAuthLogout)'
+        & go test ./internal/cli -run '^(TestAuthBrowser|TestAgentBrowser|TestBrowser|TestAuthLogout)'
         if ($LASTEXITCODE -ne 0) {
             Stop-Test 'fixture-based browser authentication and logout tests failed'
         }

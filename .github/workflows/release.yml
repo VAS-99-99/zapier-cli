@@ -24,6 +24,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  macos-browser:
+    name: macOS native browser socket gate
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify native blank-browser launch, session probe, and close
+        env:
+          ZAPIER_TEST_NATIVE_BROWSER: "1"
+          ZAPIER_TEST_BROWSER_INSTALL: "1"
+        run: go test ./internal/cli -run '^(TestAgentBrowser|TestAuthBrowserMac)' -count=1 -v -timeout 3m
+
   windows-production:
     name: Windows PowerShell 5.1 production gate
     runs-on: windows-2022
@@ -46,7 +66,7 @@ jobs:
 
   release:
     name: Build, verify, and publish
-    needs: windows-production
+    needs: [windows-production, macos-browser]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

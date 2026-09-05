@@ -40,7 +40,7 @@ const (
 	browserSessionVerifyTimeout       = 5 * time.Second
 	browserSessionVerifyURL           = "https://zapier.com/api/v4/session"
 	browserSessionMaxResponseBytes    = 1 << 20
-	agentBrowserSessionPrefix         = "zapier-pp-auth"
+	agentBrowserSessionPrefix         = "zp"
 	agentBrowserManagedDirectory      = "browser-tools"
 	agentBrowserPersistentProfile     = "browser-profile"
 )
@@ -123,6 +123,12 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 			if err != nil {
 				return authErr(fmt.Errorf("preparing the private sign-in browser: %w", err))
 			}
+			browserCtx, cleanupSockets, err := prepareAgentBrowserSocketContext(cmd.Context())
+			if err != nil {
+				return configErr(err)
+			}
+			defer cleanupSockets()
+			cmd.SetContext(browserCtx)
 
 			profilePath, err := agentBrowserProfilePath()
 			if err != nil {
@@ -147,7 +153,7 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 				if !sessionTouched {
 					return
 				}
-				closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				closeCtx, cancel := context.WithTimeout(context.WithoutCancel(cmd.Context()), 10*time.Second)
 				defer cancel()
 				result, err := runAgentBrowserCommand(closeCtx, binaryPath, "--config", browserConfigPath, "--namespace", namespaceName, "--session", sessionName, "close", "--json")
 				var data json.RawMessage
@@ -505,18 +511,40 @@ func matchesPinnedSHA256(path, expected string) bool {
 }
 
 func makeAgentBrowserSessionName() string {
-	var suffix [6]byte
+	var suffix [8]byte
 	if _, err := rand.Read(suffix[:]); err == nil {
-		return fmt.Sprintf("%s-%d-%x", agentBrowserSessionPrefix, os.Getpid(), suffix)
+		return fmt.Sprintf("%s-%x", agentBrowserSessionPrefix, suffix)
 	}
-	return fmt.Sprintf("%s-%d-%d", agentBrowserSessionPrefix, os.Getpid(), time.Now().UnixNano())
+	digest := sha256.Sum256([]byte(fmt.Sprintf("%d-%d", os.Getpid(), time.Now().UnixNano())))
+	return fmt.Sprintf("%s-%x", agentBrowserSessionPrefix, digest[:8])
 }
 
 func execAgentBrowserCommand(ctx context.Context, binary string, args ...string) (agentBrowserCommandResult, error) {
 	return execAgentBrowserWithEnvironment(ctx, privateAgentBrowserEnvironment(), binary, args...)
 }
 
+type agentBrowserSocketContextKey struct{}
+
+func prepareAgentBrowserSocketContext(ctx context.Context) (context.Context, func(), error) {
+	if browserRuntimeGOOS != "darwin" {
+		return ctx, func() {}, nil
+	}
+	// macOS sun_path permits only 103 bytes. Its normal TMPDIR and a long
+	// home directory can exceed this even with compact session names. The
+	// random directory is private (0700), not a shared or predictable socket.
+	directory, err := os.MkdirTemp("/tmp", "zpp-")
+	if err != nil {
+		return ctx, nil, errors.New("could not create a private browser socket directory")
+	}
+	return context.WithValue(ctx, agentBrowserSocketContextKey{}, directory), func() {
+		_ = os.RemoveAll(directory)
+	}, nil
+}
+
 func execAgentBrowserWithEnvironment(ctx context.Context, environment []string, binary string, args ...string) (agentBrowserCommandResult, error) {
+	if directory, ok := ctx.Value(agentBrowserSocketContextKey{}).(string); ok {
+		environment = append(environment, "AGENT_BROWSER_SOCKET_DIR="+directory)
+	}
 	var stdout, stderr limitedCommandCapture
 	command := exec.CommandContext(ctx, binary, args...) // #nosec G204 -- binary is the hash-verified managed tool and args are fixed by this package.
 	// A detached browser daemon can inherit these pipes. Bound the drain after

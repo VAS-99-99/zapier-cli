@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "id": "macos-browser-socket-path",
+  "applied_at": "2026-09-05",
+  "base_run_id": "20260903-213259-ecc098e3",
+  "base_printing_press_version": "4.31.6",
+  "summary": "Keep macOS browser helper socket paths below the native length limit and document platform-selected installation.",
+  "reason": "The downstream browser helper repeats the generated session name in a Unix socket path. Native macOS launches failed before navigation when that path exceeded 103 bytes, while the CLI reported a lost browser. Short identifiers and a unique private /tmp socket directory avoid home/TMPDIR length dependence. Windows keeps its native connection handling and separate release binary.",
+  "files": ["internal/cli/auth_browser.go", "internal/cli/auth_browser_socket_test.go", ".github/workflows/release.yml", "scripts/tests/windows_production_test.ps1", "README.md", "CLAUDE_INSTALL_PROMPT.txt", "scripts/tests/onboarding_contract_test.sh"],
+  "call_sites": ["prepareAgentBrowserSocketContext(", "TestAgentBrowserSessionNameFitsMacSocketPath", "TestAgentBrowserNativeMacSocketLifecycle"],
+  "validated_outcome": "The old generated name fails the socket-length regression. The repaired native macOS helper opens, probes, and closes a blank browser using a synthetic long home/runtime path without visiting Zapier. Private socket-directory permissions and cleanup are asserted. Release publication requires separate macOS browser and Windows PowerShell gates. README and standalone install prompts match."
+}
