@@ -1,0 +1,9 @@
+{
+  "name": "zapier-read-only",
+  "version": "0.1.0",
+  "description": "Use the unofficial Zapier CLI to inspect Zaps, historical runs, and failed steps without changing Zapier.",
+  "author": {"name": "VAS-99-99"},
+  "homepage": "https://github.com/VAS-99-99/zapier-cli",
+  "repository": "https://github.com/VAS-99-99/zapier-cli",
+  "license": "Apache-2.0"
+}

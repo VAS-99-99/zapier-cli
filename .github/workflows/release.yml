@@ -100,6 +100,7 @@ jobs:
           ./scripts/tests/install_sh_test.sh
           ./scripts/tests/install_ps1_test.sh
           ./scripts/tests/onboarding_contract_test.sh
+          python3 scripts/tests/plugin_contract_test.py
 
       - name: Build deterministic archives
         run: ./scripts/package-release.sh "${{ steps.release.outputs.tag }}" dist

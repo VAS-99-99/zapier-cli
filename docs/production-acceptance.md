@@ -32,3 +32,20 @@ test data.
 
 Record the release tag, OS/shell, checks passed/failed, and redacted errors. Do
 not attach credential files, browser profiles, or unredacted run payloads.
+
+## New-chat skill acceptance
+
+Install with `--agent claude` or `--agent codex`, or Windows `-Agent Claude`
+or `-Agent Codex`. Verify `zapier-read-only@vas-zapier-cli` is installed and
+enabled with the host's plugin list. Start a fresh chat outside the repository
+and ask "Check my Zapier runs." It should reuse the saved connection, run only
+the session check, and show the exact account before asking for confirmation.
+No new login window should open. Repeat the update installer and confirm the
+same behavior. MCP registration is optional for this skill-based workflow.
+
+Developer checks: `python3 scripts/tests/plugin_contract_test.py` validates
+both catalogs and the shared skill. With Claude Code installed,
+`python3 scripts/tests/claude_plugin_discovery_test.py` installs into an isolated
+profile and confirms the skill is advertised to a fresh chat outside the repo.
+That test uses a local synthetic model response, not a real model or Zapier
+account. Real model selection and live account reads remain manual acceptance.

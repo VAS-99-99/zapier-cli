@@ -14,7 +14,10 @@ When asked to install this repository:
 1. Clone or update `https://github.com/VAS-99-99/zapier-cli`.
    For private access, reuse the user's authenticated GitHub CLI session or
    guide GitHub sign-in. Never request a pasted token or change repo access.
-2. Run `install.ps1` on Windows or `install.sh` on macOS/Linux. Keep this a
+2. Run `install.ps1 -Agent Claude` on Windows or `install.sh --agent claude`
+   on macOS/Linux. Codex uses `-Agent Codex` or `--agent codex` instead.
+   This also installs the user-level runtime skill through the native host
+   plugin manager. MCP remains optional. Keep this a
    short install. The installer selects the prebuilt release and performs the
    checksum and version checks. Review the installer/auth source when needed
    to establish trust, and report concrete concerns. Normal installation does
@@ -38,3 +41,9 @@ read-only scope in `AGENTS.md`.
 
 When interpreting results, follow the inspection-coverage rules in AGENTS.md.
 An empty history or diagnosis is not evidence that a Zap works.
+
+For updates, preserve credentials and local changes. Re-run the current
+installer with the same host option, verify the CLI version and enabled plugin,
+then start a fresh chat to load it. Do not reconnect unless the session is missing
+or expired. Each fresh chat must confirm the exact account with only
+`session --agent --no-learn` before other live reads, even with saved credentials.

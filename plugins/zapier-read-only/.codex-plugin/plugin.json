@@ -1,0 +1,21 @@
+{
+  "name": "zapier-read-only",
+  "version": "0.1.0",
+  "description": "Use the unofficial Zapier CLI to inspect Zaps, historical runs, and failed steps without changing Zapier.",
+  "author": {
+    "name": "VAS-99-99"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Zapier Read-Only CLI",
+    "shortDescription": "Inspect Zapier runs and diagnose failed steps.",
+    "longDescription": "Instructions for the unofficial zapier-pp-cli. Reuses the local connection, confirms the account, and inspects Zap history without remote changes.",
+    "developerName": "VAS-99-99",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": ["Check my Zapier runs", "Diagnose my failed Zapier runs"]
+  },
+  "homepage": "https://github.com/VAS-99-99/zapier-cli",
+  "repository": "https://github.com/VAS-99-99/zapier-cli",
+  "license": "Apache-2.0"
+}

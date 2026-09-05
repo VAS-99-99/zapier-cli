@@ -106,7 +106,21 @@ case "$1" in
   *) exit 2 ;;
 esac
 EOF
-chmod +x "$MOCK_BIN/uname" "$MOCK_BIN/curl" "$MOCK_BIN/gh"
+
+cat >"$MOCK_BIN/claude" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'claude %s\n' "$*" >>"$MOCK_HOST_LOG"
+[ "${MOCK_HOST_FAIL:-}" != "claude:$*" ]
+EOF
+
+cat >"$MOCK_BIN/codex" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'codex %s\n' "$*" >>"$MOCK_HOST_LOG"
+[ "${MOCK_HOST_FAIL:-}" != "codex:$*" ]
+EOF
+chmod +x "$MOCK_BIN/uname" "$MOCK_BIN/curl" "$MOCK_BIN/gh" "$MOCK_BIN/claude" "$MOCK_BIN/codex"
 
 printf '#!/bin/sh\nprintf "zapier-pp-cli v1-prerelease\\n"\n' >"$RELEASE_DIR/payload/zapier-pp-cli"
 printf '#!/bin/sh\nprintf "new mcp\\n"\n' >"$RELEASE_DIR/payload/zapier-pp-mcp"
@@ -188,8 +202,46 @@ assert_contains "$install_output" "codex mcp add zapier --"
 assert_contains "$install_output" "zapier-pp-cli session --agent --no-learn"
 assert_contains "$install_output" "CLI version v1-prerelease"
 
+# A normal install remains CLI-only: it must not invoke either host command.
+[ ! -e "$TEST_ROOT/default-host.log" ] || fail "default install registered a host plugin"
+
+# Verify-only is deliberately host-write-free even when an agent was selected.
+agent_verify_output=$(PATH="$TEST_PATH" MOCK_RELEASE_DIR="$RELEASE_DIR" MOCK_HOST_LOG="$TEST_ROOT/verify-host.log" \
+  sh "$REPO_ROOT/install.sh" --tag v1-prerelease --verify-only --agent claude 2>&1)
+assert_contains "$agent_verify_output" "no files were installed"
+[ ! -e "$TEST_ROOT/verify-host.log" ] || fail "verify-only invoked a host command"
+
+CLAUDE_LOG="$TEST_ROOT/claude-host.log"
+claude_output=$(PATH="$TEST_PATH" MOCK_RELEASE_DIR="$RELEASE_DIR" MOCK_HOST_LOG="$CLAUDE_LOG" \
+  sh "$REPO_ROOT/install.sh" --tag v1-prerelease --install-dir "$TEST_ROOT/claude install" --no-path-update --agent claude 2>&1)
+assert_contains "$claude_output" "Installed or updated zapier-read-only@vas-zapier-cli for claude."
+assert_contains "$(cat "$CLAUDE_LOG")" "claude plugin marketplace add VAS-99-99/zapier-cli --scope user"
+assert_contains "$(cat "$CLAUDE_LOG")" "claude plugin marketplace update vas-zapier-cli"
+assert_contains "$(cat "$CLAUDE_LOG")" "claude plugin install zapier-read-only@vas-zapier-cli --scope user"
+assert_contains "$(cat "$CLAUDE_LOG")" "claude plugin update zapier-read-only@vas-zapier-cli --scope user"
+
+# The native sequence is idempotent: a repeated selected-host run succeeds.
+PATH="$TEST_PATH" MOCK_RELEASE_DIR="$RELEASE_DIR" MOCK_HOST_LOG="$CLAUDE_LOG" \
+  sh "$REPO_ROOT/install.sh" --tag v1-prerelease --install-dir "$TEST_ROOT/claude install" --no-path-update --agent claude >/dev/null 2>&1 || fail "repeated Claude install failed"
+
+CODEX_LOG="$TEST_ROOT/codex-host.log"
+codex_output=$(PATH="$TEST_PATH" MOCK_RELEASE_DIR="$RELEASE_DIR" MOCK_HOST_LOG="$CODEX_LOG" \
+  sh "$REPO_ROOT/install.sh" --tag v1-prerelease --install-dir "$TEST_ROOT/codex install" --no-path-update --agent codex 2>&1)
+assert_contains "$codex_output" "Installed or updated zapier-read-only@vas-zapier-cli for codex."
+assert_contains "$(cat "$CODEX_LOG")" "codex plugin marketplace add VAS-99-99/zapier-cli"
+assert_contains "$(cat "$CODEX_LOG")" "codex plugin marketplace upgrade vas-zapier-cli"
+assert_contains "$(cat "$CODEX_LOG")" "codex plugin add zapier-read-only@vas-zapier-cli"
+
+plugin_failure_output=$(PATH="$TEST_PATH" MOCK_RELEASE_DIR="$RELEASE_DIR" MOCK_HOST_LOG="$TEST_ROOT/failure-host.log" MOCK_HOST_FAIL='codex:plugin add zapier-read-only@vas-zapier-cli' \
+  sh "$REPO_ROOT/install.sh" --tag v1-prerelease --install-dir "$TEST_ROOT/failure install" --no-path-update --agent codex 2>&1) && fail "plugin failure unexpectedly succeeded"
+assert_contains "$plugin_failure_output" "CLI version v1-prerelease was installed, but codex plugin setup failed"
+[ -x "$TEST_ROOT/failure install/zapier-pp-cli" ] || fail "plugin failure rolled back the installed CLI"
+
+invalid_agent_output=$(PATH="$TEST_PATH" sh "$REPO_ROOT/install.sh" --agent nope --verify-only 2>&1) && fail "invalid agent unexpectedly succeeded"
+assert_contains "$invalid_agent_output" "unsupported agent: nope"
+
 unsupported_output=$(PATH="$TEST_PATH" MOCK_UNAME_S=Linux MOCK_UNAME_M=arm64 MOCK_RELEASE_DIR="$RELEASE_DIR" \
   sh "$REPO_ROOT/install.sh" --verify-only 2>&1) && fail "unsupported platform unexpectedly succeeded"
 assert_contains "$unsupported_output" "Linux arm64"
 
-printf 'PASS: install.sh public download, platform, checksum, verification, replacement, and guidance tests\n'
+printf 'PASS: install.sh public download, platform, checksum, verification, CLI-only default, and opt-in plugin tests\n'

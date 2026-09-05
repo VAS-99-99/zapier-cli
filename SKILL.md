@@ -19,13 +19,16 @@ Complete these five stages in order. The team repository is
 1. Clone `https://github.com/VAS-99-99/zapier-cli`, or safely update the
    existing clone. Private-repository access requires the user's authenticated
    GitHub CLI session. Guide GitHub sign-in if needed; never ask for a token.
-2. Run `./install.sh` on macOS/Linux or
-   `powershell -ExecutionPolicy Bypass -File .\install.ps1` on Windows. The
+2. Run `./install.sh --agent claude` or `./install.sh --agent codex` for your
+   host on macOS/Linux. On Windows use
+   `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Agent Claude`
+   or `-Agent Codex`. The
    installer downloads the matching GitHub Release, verifies SHA-256,
    and installs both binaries. Normal users need no Go, Node.js, npm,
    Playwright, agent-browser, browser extension, or Zapier token. Verify
-   `zapier-pp-cli version` in the current terminal, then run the exact Claude
-   or Codex MCP registration command printed by the installer.
+   `zapier-pp-cli version` in the current terminal. The host option also installs
+   the user-level runtime skill plugin; start a fresh chat to load it. MCP is
+   optional and is not required for terminal-based skill use.
 3. Stop and tell the user to run `zapier-pp-cli auth browser` personally in
    their own terminal. Do not run authentication, inspect browser storage, read
    the credential store, or request a cookie or token. The user completes the
@@ -49,6 +52,12 @@ x64. They default to `$HOME/.local/bin` on macOS/Linux and
 flags, reconnect, uninstall, and troubleshooting details.
 
 ## Established connection
+
+Credentials persist across chats for the same OS user. In every fresh chat,
+first run only `zapier-pp-cli session --agent --no-learn`, show the exact account,
+and wait for confirmation before any other live read. Do not open another login
+window just because the chat is new. The installed companion skill is
+`plugins/zapier-read-only/skills/zapier/SKILL.md` in the source repository.
 
 For an account that has already passed the account checkpoint, ask the runtime
 for current truth before answering a new request:

@@ -121,6 +121,27 @@ try {
         Stop-Test 'PATH-resolved zapier-pp-cli did not run the installed executable'
     }
 
+    # Fixture host commands keep this native Windows PowerShell 5.1 test
+    # isolated from actual Claude/Codex configuration.
+    $pluginLog = Join-Path $testRoot 'plugin-host.log'
+    function claude {
+        param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+        Add-Content -LiteralPath $pluginLog -Value ('claude ' + ($Arguments -join ' '))
+        $global:LASTEXITCODE = 0
+    }
+    function codex {
+        param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+        Add-Content -LiteralPath $pluginLog -Value ('codex ' + ($Arguments -join ' '))
+        $global:LASTEXITCODE = 0
+    }
+    & { . $installer -Tag $releaseTag -InstallDir $installDir -NoPathUpdate -Agent Claude } *> $null
+    & { . $installer -Tag $releaseTag -InstallDir $installDir -NoPathUpdate -Agent Codex } *> $null
+    $pluginCommands = Get-Content -LiteralPath $pluginLog -Raw
+    Assert-Contains $pluginCommands 'claude plugin marketplace add VAS-99-99/zapier-cli --scope user'
+    Assert-Contains $pluginCommands 'claude plugin install zapier-read-only@vas-zapier-cli --scope user'
+    Assert-Contains $pluginCommands 'codex plugin marketplace add VAS-99-99/zapier-cli'
+    Assert-Contains $pluginCommands 'codex plugin add zapier-read-only@vas-zapier-cli'
+
     $aclTests = @(
         'TestWindowsCredentialTrusteeAliasRequiresExactSID',
         'TestAtomicWritePrivateFileRefusesUnsafeEmptyTempBeforeWriting',
@@ -190,7 +211,7 @@ try {
         Pop-Location
     }
 
-    Write-Host 'PASS: Windows PowerShell 5.1 installer, credential ACL, browser authentication, logout, and MCP stdio tests'
+    Write-Host 'PASS: Windows PowerShell 5.1 installer, opt-in plugin fixtures, credential ACL, browser authentication, logout, and MCP stdio tests'
 } finally {
     $env:Path = $originalPath
     if (Test-Path -LiteralPath $testRoot) {

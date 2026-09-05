@@ -10,7 +10,11 @@ param(
     [switch]$VerifyOnly,
 
     [Parameter()]
-    [switch]$NoPathUpdate
+    [switch]$NoPathUpdate,
+
+    [Parameter()]
+    [ValidateSet('Claude', 'Codex')]
+    [string]$Agent
 )
 
 Set-StrictMode -Version Latest
@@ -38,6 +42,28 @@ function Get-GitHubCLIFallbackHint {
     return 'Run "gh auth login" and retry, or download the release archive and SHA256SUMS manually from GitHub.'
 }
 
+function Install-AgentPlugin {
+    param([Parameter(Mandatory = $true)][string]$AgentHost)
+
+    if ($AgentHost -eq 'Claude') {
+        & claude plugin marketplace add $Repository --scope user
+        if ($LASTEXITCODE -ne 0) { return $false }
+        & claude plugin marketplace update vas-zapier-cli
+        if ($LASTEXITCODE -ne 0) { return $false }
+        & claude plugin install zapier-read-only@vas-zapier-cli --scope user
+        if ($LASTEXITCODE -ne 0) { return $false }
+        & claude plugin update zapier-read-only@vas-zapier-cli --scope user
+        return $LASTEXITCODE -eq 0
+    }
+
+    & codex plugin marketplace add $Repository
+    if ($LASTEXITCODE -ne 0) { return $false }
+    & codex plugin marketplace upgrade vas-zapier-cli
+    if ($LASTEXITCODE -ne 0) { return $false }
+    & codex plugin add zapier-read-only@vas-zapier-cli
+    return $LASTEXITCODE -eq 0
+}
+
 $RunningOnWindows = $env:OS -eq 'Windows_NT'
 if (-not $RunningOnWindows -and (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue)) {
     $RunningOnWindows = $IsWindows
@@ -57,6 +83,10 @@ if ($RawArchitecture -notin @('AMD64', 'x86_64')) {
 
 if ([string]::IsNullOrWhiteSpace($InstallDir)) {
     Stop-Install 'the install directory cannot be empty'
+}
+
+if (-not $VerifyOnly -and -not [string]::IsNullOrWhiteSpace($Agent) -and -not (Get-Command $Agent.ToLowerInvariant() -ErrorAction SilentlyContinue)) {
+    Stop-Install "-Agent $Agent requires the $($Agent.ToLowerInvariant()) command on PATH. Install or update that host, then retry."
 }
 
 if ([string]::IsNullOrWhiteSpace($Tag)) {
@@ -263,6 +293,16 @@ try {
     Write-Host '  zapier-pp-cli auth browser'
     Write-Host 'After login, the first and only account check must be:'
     Write-Host '  zapier-pp-cli session --agent --no-learn'
+
+    if (-not [string]::IsNullOrWhiteSpace($Agent)) {
+        Write-Host ''
+        Write-Host "Installing the Zapier read-only plugin for $Agent..."
+        if (Install-AgentPlugin -AgentHost $Agent) {
+            Write-Host "Installed or updated zapier-read-only@vas-zapier-cli for $Agent."
+        } else {
+            Stop-Install "CLI version $ReleaseVersion was installed, but $Agent plugin setup failed. The CLI remains installed; no other $Agent plugins or configuration were rolled back."
+        }
+    }
 } finally {
     if ($TempRoot -and (Test-Path -LiteralPath $TempRoot)) {
         Remove-Item -LiteralPath $TempRoot -Recurse -Force

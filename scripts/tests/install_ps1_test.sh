@@ -41,7 +41,9 @@ param(
     [string]$Tag,
     [string]$InstallDir,
     [switch]$VerifyOnly,
-    [switch]$NoPathUpdate
+    [switch]$NoPathUpdate,
+    [ValidateSet('Claude', 'Codex')]
+    [string]$Agent
 )
 
 function Invoke-WebRequest {
@@ -99,10 +101,31 @@ function gh {
     $global:LASTEXITCODE = 1
 }
 
+function Write-MockHostCommand {
+    param([string]$AgentHost, [string[]]$Arguments)
+    Add-Content -LiteralPath $env:MOCK_HOST_LOG -Value ("$AgentHost " + ($Arguments -join ' '))
+    if ($env:MOCK_HOST_FAIL -eq ("${AgentHost}:" + ($Arguments -join ' '))) {
+        $global:LASTEXITCODE = 1
+    } else {
+        $global:LASTEXITCODE = 0
+    }
+}
+
+function claude {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+    Write-MockHostCommand -AgentHost 'claude' -Arguments $Arguments
+}
+
+function codex {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+    Write-MockHostCommand -AgentHost 'codex' -Arguments $Arguments
+}
+
 $InstallerArgs = @{}
 if (-not [string]::IsNullOrWhiteSpace($Tag)) { $InstallerArgs.Tag = $Tag }
 if ($VerifyOnly) { $InstallerArgs.VerifyOnly = $true }
 if ($NoPathUpdate) { $InstallerArgs.NoPathUpdate = $true }
+if (-not [string]::IsNullOrWhiteSpace($Agent)) { $InstallerArgs.Agent = $Agent }
 if (-not [string]::IsNullOrWhiteSpace($InstallDir)) { $InstallerArgs.InstallDir = $InstallDir }
 . $Installer @InstallerArgs
 EOF
@@ -183,8 +206,44 @@ assert_contains "$install_output" "codex mcp add zapier --"
 assert_contains "$install_output" "zapier-pp-cli session --agent --no-learn"
 assert_contains "$install_output" "CLI version v1-prerelease"
 
+[ ! -e "$TEST_ROOT/default-host.log" ] || fail "default install registered a host plugin"
+
+agent_verify_output=$(env "$PS_ENV" PROCESSOR_ARCHITECTURE=AMD64 MOCK_RELEASE_DIR="$RELEASE_DIR" MOCK_HOST_LOG="$TEST_ROOT/verify-host.log" \
+  pwsh -NoLogo -NoProfile -File "$PS_WRAPPER" -Installer "$REPO_ROOT/install.ps1" -Tag v1-prerelease -VerifyOnly -Agent Claude 2>&1)
+assert_contains "$agent_verify_output" "no files were installed."
+[ ! -e "$TEST_ROOT/verify-host.log" ] || fail "verify-only invoked a host command"
+
+CLAUDE_LOG="$TEST_ROOT/claude-host.log"
+claude_output=$(env "$PS_ENV" PROCESSOR_ARCHITECTURE=AMD64 MOCK_RELEASE_DIR="$RELEASE_DIR" MOCK_HOST_LOG="$CLAUDE_LOG" \
+  pwsh -NoLogo -NoProfile -File "$PS_WRAPPER" -Installer "$REPO_ROOT/install.ps1" -Tag v1-prerelease -InstallDir "$TEST_ROOT/claude install" -NoPathUpdate -Agent Claude 2>&1)
+assert_contains "$claude_output" "Installed or updated zapier-read-only@vas-zapier-cli for Claude."
+assert_contains "$(cat "$CLAUDE_LOG")" "claude plugin marketplace add VAS-99-99/zapier-cli --scope user"
+assert_contains "$(cat "$CLAUDE_LOG")" "claude plugin marketplace update vas-zapier-cli"
+assert_contains "$(cat "$CLAUDE_LOG")" "claude plugin install zapier-read-only@vas-zapier-cli --scope user"
+assert_contains "$(cat "$CLAUDE_LOG")" "claude plugin update zapier-read-only@vas-zapier-cli --scope user"
+
+env "$PS_ENV" PROCESSOR_ARCHITECTURE=AMD64 MOCK_RELEASE_DIR="$RELEASE_DIR" MOCK_HOST_LOG="$CLAUDE_LOG" \
+  pwsh -NoLogo -NoProfile -File "$PS_WRAPPER" -Installer "$REPO_ROOT/install.ps1" -Tag v1-prerelease -InstallDir "$TEST_ROOT/claude install" -NoPathUpdate -Agent Claude >/dev/null 2>&1 || fail "repeated Claude install failed"
+
+CODEX_LOG="$TEST_ROOT/codex-host.log"
+codex_output=$(env "$PS_ENV" PROCESSOR_ARCHITECTURE=AMD64 MOCK_RELEASE_DIR="$RELEASE_DIR" MOCK_HOST_LOG="$CODEX_LOG" \
+  pwsh -NoLogo -NoProfile -File "$PS_WRAPPER" -Installer "$REPO_ROOT/install.ps1" -Tag v1-prerelease -InstallDir "$TEST_ROOT/codex install" -NoPathUpdate -Agent Codex 2>&1)
+assert_contains "$codex_output" "Installed or updated zapier-read-only@vas-zapier-cli for Codex."
+assert_contains "$(cat "$CODEX_LOG")" "codex plugin marketplace add VAS-99-99/zapier-cli"
+assert_contains "$(cat "$CODEX_LOG")" "codex plugin marketplace upgrade vas-zapier-cli"
+assert_contains "$(cat "$CODEX_LOG")" "codex plugin add zapier-read-only@vas-zapier-cli"
+
+plugin_failure_output=$(env "$PS_ENV" PROCESSOR_ARCHITECTURE=AMD64 MOCK_RELEASE_DIR="$RELEASE_DIR" MOCK_HOST_LOG="$TEST_ROOT/failure-host.log" MOCK_HOST_FAIL='codex:plugin add zapier-read-only@vas-zapier-cli' \
+  pwsh -NoLogo -NoProfile -File "$PS_WRAPPER" -Installer "$REPO_ROOT/install.ps1" -Tag v1-prerelease -InstallDir "$TEST_ROOT/failure install" -NoPathUpdate -Agent Codex 2>&1) && fail "plugin failure unexpectedly succeeded"
+assert_contains "$plugin_failure_output" "plugin setup failed"
+[ -x "$TEST_ROOT/failure install/zapier-pp-cli.exe" ] || fail "plugin failure rolled back the installed CLI"
+
+invalid_agent_output=$(env "$PS_ENV" PROCESSOR_ARCHITECTURE=AMD64 MOCK_RELEASE_DIR="$RELEASE_DIR" \
+  pwsh -NoLogo -NoProfile -File "$PS_WRAPPER" -Installer "$REPO_ROOT/install.ps1" -Tag v1-prerelease -VerifyOnly -Agent Nope 2>&1) && fail "invalid agent unexpectedly succeeded"
+assert_contains "$invalid_agent_output" "Cannot validate argument"
+
 unsupported_output=$(env "$PS_ENV" PROCESSOR_ARCHITECTURE=ARM64 MOCK_RELEASE_DIR="$RELEASE_DIR" \
   pwsh -NoLogo -NoProfile -File "$PS_WRAPPER" -Installer "$REPO_ROOT/install.ps1" -Tag v1-prerelease -VerifyOnly 2>&1) && fail "unsupported architecture unexpectedly succeeded"
 assert_contains "$unsupported_output" "Windows architecture: ARM64"
 
-printf 'PASS: install.ps1 public download, architecture, checksum, verification, replacement, and guidance tests\n'
+printf 'PASS: install.ps1 public download, architecture, checksum, verification, CLI-only default, and opt-in plugin tests\n'

@@ -1,0 +1,11 @@
+{
+  "name": "vas-zapier-cli",
+  "owner": {"name": "VAS-99-99"},
+  "plugins": [
+    {
+      "name": "zapier-read-only",
+      "source": "./plugins/zapier-read-only",
+      "description": "Unofficial read-only Zapier run inspection and failed-step diagnosis."
+    }
+  ]
+}

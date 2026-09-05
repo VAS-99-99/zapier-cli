@@ -1,0 +1,20 @@
+{
+  "name": "vas-zapier-cli",
+  "interface": {
+    "displayName": "Vas Zapier Cli"
+  },
+  "plugins": [
+    {
+      "name": "zapier-read-only",
+      "source": {
+        "source": "local",
+        "path": "./plugins/zapier-read-only"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

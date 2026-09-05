@@ -16,13 +16,22 @@ asking Claude to capture or handle a live browser session. The same text is in
 `CLAUDE_INSTALL_PROMPT.txt`.
 
 ```text
-Quick install our team's unofficial, read-only Zapier CLI from https://github.com/VAS-99-99/zapier-cli. I authorize downloading and installing this tool. Clone it into the current directory; if that destination exists, inspect only that directory and preserve its changes. Do not search the computer for a clone. Read CLAUDE.md, then run the repository installer for this operating system. Use only the prebuilt GitHub Release. For this private repository, reuse my authenticated GitHub CLI session; if access is missing, guide me through GitHub sign-in, never ask me to paste a token. Keep any necessary trust review focused on concrete concerns. The installer performs the checksum and version checks. Do not install Go or build from source.
+Quick install our team's unofficial, read-only Zapier CLI from https://github.com/VAS-99-99/zapier-cli. I authorize downloading and installing this tool. Clone it into the current directory; if that destination exists, inspect only that directory and preserve its changes. Do not search the computer for a clone. Read CLAUDE.md, then run the repository installer with the plugin option for your host: Windows uses .\install.ps1 -Agent Claude or -Agent Codex; macOS/Linux uses ./install.sh --agent claude or --agent codex. Use only the prebuilt GitHub Release. If repository access requires authentication, reuse my authenticated GitHub CLI session or guide me through GitHub sign-in, never ask me to paste a token. Keep any necessary trust review focused on concrete concerns. The installer performs the checksum and version checks. Do not install Go or build from source.
 
 After installation, confirm `zapier-pp-cli version` works in the current terminal. Fix command resolution yourself if needed. Do not ask me to open another terminal or edit PATH.
 
 You are not being asked to authenticate, capture a session, inspect browser storage, or handle a cookie or token. After installation, stop and tell me to run `zapier-pp-cli auth browser` myself in my own terminal. I will complete the visible Zapier login outside Claude.
 
 Only after I explicitly reply `connected`, run `zapier-pp-cli session --agent --no-learn`. Show me the exact connected account and stop for confirmation. Before that confirmation, do not run doctor, list Zaps, inspect runs, or make any other Zapier request. Never perform a remote Zapier write.
+```
+
+## Updates for existing users
+
+Copy this prompt into the agent. Your saved Zapier connection stays in place.
+The same prompt is in `UPDATE_PROMPT.txt`.
+
+```text
+Update our unofficial read-only Zapier CLI and its agent plugin from https://github.com/VAS-99-99/zapier-cli. I authorize downloading and installing the update. Use the clone in the current directory, preserving local changes; fetch and fast-forward only if safe, otherwise use a separate clean clone. Do not search my computer. Read CLAUDE.md. Run the current installer for your host: Windows .\install.ps1 -Agent Claude or -Agent Codex; macOS/Linux ./install.sh --agent claude or --agent codex. Use the latest checksummed prebuilt release, never Go or a source build. Preserve existing credentials and unrelated agent settings. Verify the CLI version in this terminal and confirm zapier-read-only@vas-zapier-cli is installed and enabled. Tell me to start a fresh chat to load the updated skill. Do not open a browser or reconnect automatically. Run only zapier-pp-cli session --agent --no-learn, show the exact connected account, and stop for confirmation. If authentication is missing or expired, instead give me the exact auth browser command to run personally; never read or print credentials. Never change anything in Zapier.
 ```
 
 ## Supported systems
@@ -45,9 +54,8 @@ by your team; installation does not change them.
 
 ## Install manually
 
-For this private repository, sign into GitHub CLI with a teammate account that
-has repository access, then clone it. Public repositories do not require this
-GitHub sign-in step.
+If the repository is private, sign into GitHub CLI with an account that has
+repository access. Public access does not require GitHub sign-in.
 
 ```bash
 git clone https://github.com/VAS-99-99/zapier-cli.git
@@ -82,6 +90,7 @@ Useful installer options:
 | `--install-dir DIR` | `-InstallDir DIR` | Use another user-writable directory |
 | `--verify-only` | `-VerifyOnly` | Download and verify without installing |
 | `--no-path-update` | `-NoPathUpdate` | Leave the user's PATH unchanged |
+| `--agent claude` or `--agent codex` | `-Agent Claude` or `-Agent Codex` | Also install or update that host's user-level Zapier skill plugin |
 
 ## Connect the account
 
@@ -124,6 +133,30 @@ Show the exact returned account identity and wait for the user to confirm it.
 Only then run `doctor` or another live read.
 
 ## Connect Claude or Codex
+
+For discovery in new chats, install the companion skill plugin for your host:
+
+```bash
+./install.sh --agent claude
+# Or: ./install.sh --agent codex
+```
+
+On Windows, use `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Agent Claude`
+or replace `Claude` with `Codex`. The selected host command must already be on
+PATH and support plugins. Without this option, installation remains binary-only.
+The plugin uses the host's native user-level plugin manager and shares one
+runtime skill across Claude Code and Codex. It does not register MCP, install
+hooks, start background processes, or copy your credentials into agent settings.
+
+Start a fresh chat outside the clone and ask "Check my Zapier runs." The agent
+should find the skill, reuse the local connection, show the exact account, and
+wait for confirmation. In Claude Code you can explicitly select
+`/zapier-read-only:zapier`; in Codex select the installed `zapier` skill if it
+isn't picked automatically. Skill discovery is model-dependent, not a guarantee
+that every prompt invokes it. Installing the plugin alone does not install the
+CLI binary; the combined installer above installs both.
+
+### Optional MCP connection
 
 The installer prints commands with the absolute path to `zapier-pp-mcp`. Use
 the command for the current host. These PATH-based forms also work when the host

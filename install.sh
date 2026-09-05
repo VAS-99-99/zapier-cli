@@ -6,6 +6,7 @@ REPOSITORY="VAS-99-99/zapier-cli"
 TAG=""
 VERIFY_ONLY=false
 UPDATE_PATH=true
+AGENT=""
 INSTALL_DIR="${XDG_BIN_HOME:-${HOME:?HOME is not set}/.local/bin}"
 TEMP_DIR=""
 
@@ -20,6 +21,7 @@ Options:
   --install-dir DIR  Install into DIR (default: ~/.local/bin).
   --verify-only      Download and verify the archive without installing it.
   --no-path-update   Do not add the install directory to a shell profile.
+  --agent HOST       Also install the read-only plugin for HOST (claude or codex).
   -h, --help         Show this help.
 
 Uses `curl` or `wget` for anonymous downloads. For a private release, install
@@ -65,6 +67,22 @@ read_cli_version() {
   printf '%s\n' "$version_line" | awk '{ print $2 }'
 }
 
+install_agent_plugin() {
+  case "$AGENT" in
+    claude)
+      claude plugin marketplace add "$REPOSITORY" --scope user &&
+        claude plugin marketplace update vas-zapier-cli &&
+        claude plugin install zapier-read-only@vas-zapier-cli --scope user &&
+        claude plugin update zapier-read-only@vas-zapier-cli --scope user
+      ;;
+    codex)
+      codex plugin marketplace add "$REPOSITORY" &&
+        codex plugin marketplace upgrade vas-zapier-cli &&
+        codex plugin add zapier-read-only@vas-zapier-cli
+      ;;
+  esac
+}
+
 quote_for_shell() {
   escaped=$(printf '%s' "$1" | sed "s/'/'\\\\''/g")
   printf "'%s'" "$escaped"
@@ -90,6 +108,11 @@ while [ "$#" -gt 0 ]; do
       UPDATE_PATH=false
       shift
       ;;
+    --agent)
+      [ "$#" -ge 2 ] || fail "--agent requires claude or codex"
+      AGENT=$2
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -99,6 +122,15 @@ while [ "$#" -gt 0 ]; do
       ;;
   esac
 done
+
+case "$AGENT" in
+  ""|claude|codex) ;;
+  *) fail "unsupported agent: $AGENT. Supported: claude or codex." ;;
+esac
+
+if [ -n "$AGENT" ] && [ "$VERIFY_ONLY" != true ] && ! command -v "$AGENT" >/dev/null 2>&1; then
+  fail "--agent $AGENT requires the $AGENT command on PATH. Install or update that host, then retry."
+fi
 
 [ -n "$INSTALL_DIR" ] || fail "the install directory cannot be empty"
 case "$INSTALL_DIR" in
@@ -318,3 +350,13 @@ printf '  Claude: claude mcp add --scope user zapier -- %s\n' "$QUOTED_MCP"
 printf '  Codex:  codex mcp add zapier -- %s\n' "$QUOTED_MCP"
 printf '\nThen connect Zapier in a visible browser:\n  zapier-pp-cli auth browser\n'
 printf 'After login, the first and only account check must be:\n  zapier-pp-cli session --agent --no-learn\n'
+
+if [ -n "$AGENT" ]; then
+  printf '\nInstalling the Zapier read-only plugin for %s...\n' "$AGENT"
+  if install_agent_plugin; then
+    printf 'Installed or updated zapier-read-only@vas-zapier-cli for %s.\n' "$AGENT"
+  else
+    printf 'Error: CLI version %s was installed, but %s plugin setup failed. The CLI remains installed; no other %s plugins or configuration were rolled back.\n' "$RELEASE_VERSION" "$AGENT" "$AGENT" >&2
+    exit 1
+  fi
+fi

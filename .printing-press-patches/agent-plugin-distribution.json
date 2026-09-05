@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "id": "agent-plugin-distribution",
+  "applied_at": "2026-09-05",
+  "base_run_id": "20260903-213259-ecc098e3",
+  "base_printing_press_version": "4.31.6",
+  "summary": "Distribute one read-only runtime skill through native Claude and Codex plugin marketplaces.",
+  "reason": "Installing a binary and leaving instructions inside its clone does not make that CLI discoverable in unrelated new chats. Opt-in native user-level plugin installation supplies discovery without hooks, MCP registration, credential copying, or changes to remote behavior.",
+  "files": ["install.sh", "install.ps1", "README.md", "SKILL.md", "AGENTS.md", "CLAUDE.md", "CLAUDE_INSTALL_PROMPT.txt", "UPDATE_PROMPT.txt", ".agents/plugins/marketplace.json", ".claude-plugin/marketplace.json", "plugins/zapier-read-only/.codex-plugin/plugin.json", "plugins/zapier-read-only/.claude-plugin/plugin.json", "plugins/zapier-read-only/skills/zapier/SKILL.md", "scripts/tests/plugin_contract_test.py", "scripts/tests/claude_plugin_discovery_test.py", "scripts/tests/install_sh_test.sh", "scripts/tests/install_ps1_test.sh", "scripts/tests/windows_production_test.ps1", ".github/workflows/release.yml", "docs/production-acceptance.md"],
+  "call_sites": ["install_agent_plugin()", "function Install-AgentPlugin", "test_catalogs_resolve_the_same_plugin"],
+  "validated_outcome": "Installer fixtures cover explicit host selection, repeat installation, verification-only isolation, and partial failure. Native isolated host profiles accept and enable the shared plugin. Claude fresh-chat discovery is tested with a synthetic local model response; live model selection and account reads remain manual acceptance. Existing credentials remain in the CLI store."
+}
