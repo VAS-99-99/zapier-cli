@@ -51,9 +51,20 @@ var ownerRe = regexp.MustCompile(`O:(S(?:-\d+)+|[A-Za-z]{2})`)
 
 // evalCredsSecurity fails CLOSED: any parse ambiguity or disallowed principal → error.
 func evalCredsSecurity(sddl, currentUserSID string) error {
+	return evalCredsSecurityWithSIDResolver(sddl, currentUserSID, func(trustee string) (string, error) { return trustee, nil })
+}
+
+// Windows may render the current user's full SID as a machine-relative SDDL
+// alias such as LA. Resolve trustees to exact SIDs before policy evaluation;
+// an alias is never an additional allowed principal in its own right.
+func evalCredsSecurityWithSIDResolver(sddl, currentUserSID string, resolve func(string) (string, error)) error {
 	// (c) Owner must be current user, Administrators, or SYSTEM.
 	om := ownerRe.FindStringSubmatch(sddl)
-	if om == nil || !ownerAllowed(om[1], currentUserSID) {
+	if om == nil {
+		return fmt.Errorf("token file owner could not be parsed; refusing (fail-closed)")
+	}
+	owner, err := resolve(strings.ToUpper(strings.TrimSpace(om[1])))
+	if err != nil || !ownerAllowed(owner, currentUserSID) {
 		return fmt.Errorf("token file owner is not the current user; " +
 			"lock it down: icacls <path> /setowner %%USERNAME%%")
 	}
@@ -85,6 +96,10 @@ func evalCredsSecurity(sddl, currentUserSID string) error {
 			continue
 		default:
 			return fmt.Errorf("token file DACL has an unsupported ACE type %q; refusing (fail-closed)", aceType)
+		}
+		trustee, err = resolve(trustee)
+		if err != nil {
+			return fmt.Errorf("token file DACL trustee could not be resolved; refusing (fail-closed)")
 		}
 		// (d) Strict default-deny: every allow-ACE trustee must be current-user /
 		// Administrators / SYSTEM. Broad well-known groups get a clearer message.

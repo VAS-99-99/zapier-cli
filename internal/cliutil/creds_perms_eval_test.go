@@ -3,7 +3,10 @@
 
 package cliutil
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestEvalCredsSecurity(t *testing.T) {
 	const me = "S-1-5-21-1-2-3-1000"
@@ -32,6 +35,42 @@ func TestEvalCredsSecurity(t *testing.T) {
 			err := evalCredsSecurity(c.sddl, me)
 			if (err != nil) != c.wantErr {
 				t.Fatalf("evalCredsSecurity(%q) err=%v want wantErr=%v", c.sddl, err, c.wantErr)
+			}
+		})
+	}
+}
+
+func TestEvalCredsSecurityResolvesCurrentUserAliasWithoutTrustingForeignAlias(t *testing.T) {
+	const localAdmin = "S-1-5-21-1-2-3-500"
+	const otherUser = "S-1-5-21-1-2-3-1000"
+	resolve := func(trustee string) (string, error) {
+		switch trustee {
+		case "LA":
+			return localAdmin, nil
+		case "WD":
+			return "S-1-1-0", nil
+		case "ZZ":
+			return "", fmt.Errorf("unknown trustee")
+		default:
+			return trustee, nil
+		}
+	}
+	for _, tc := range []struct {
+		name, owner, ace, me string
+		wantErr              bool
+	}{
+		{"current user ACE alias", localAdmin, "LA", localAdmin, false},
+		{"current user owner alias", "LA", localAdmin, localAdmin, false},
+		{"current user both aliases", "LA", "LA", localAdmin, false},
+		{"foreign administrator ACE", otherUser, "LA", otherUser, true},
+		{"foreign administrator owner", "LA", otherUser, otherUser, true},
+		{"unresolved alias", localAdmin, "ZZ", localAdmin, true},
+		{"broad alias", localAdmin, "WD", localAdmin, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := evalCredsSecurityWithSIDResolver("O:"+tc.owner+"D:(A;;FA;;;"+tc.ace+")", tc.me, resolve)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("alias evaluation error = %v, want error = %v", err, tc.wantErr)
 			}
 		})
 	}

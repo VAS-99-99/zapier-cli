@@ -17,6 +17,10 @@
     "internal/cliutil/paths.go",
     "internal/cliutil/paths_private_test.go",
     "internal/cliutil/credentials_perms_test.go",
+    "internal/cliutil/creds_perms_eval.go",
+    "internal/cliutil/creds_perms_eval_test.go",
+    "internal/cliutil/creds_perms_windows.go",
+    "internal/cliutil/creds_perms_alias_windows_test.go",
     "internal/config/config.go",
     "internal/config/credential_save_rollback_test.go",
     "cmd/zapier-pp-mcp/stdio_production_test.go",
@@ -34,6 +38,7 @@
     "parseReportingRunsPage(",
     "parseReportingRunDetail(",
     "atomicWritePrivateFileWithVerifier(",
+    "evalCredsSecurityWithSIDResolver(",
     "github_cli_authenticated()",
     "Test-GitHubCLIAuthentication",
     "Windows PowerShell 5.1 production gate"

@@ -122,6 +122,7 @@ try {
     }
 
     $aclTests = @(
+        'TestWindowsCredentialTrusteeAliasRequiresExactSID',
         'TestAtomicWritePrivateFileRefusesUnsafeEmptyTempBeforeWriting',
         'TestLoadCredentials_RefusesOverPermissiveFileOnRead',
         'TestSaveCredentialsVerifiesWrittenFile'

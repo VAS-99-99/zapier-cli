@@ -44,5 +44,13 @@ func VerifyCredsPerms(path string) error {
 	if err != nil {
 		return fmt.Errorf("cannot resolve current user SID: %w", err)
 	}
-	return evalCredsSecurity(sd.String(), me)
+	return evalCredsSecurityWithSIDResolver(sd.String(), me, resolveWindowsSDDLTrustee)
+}
+
+func resolveWindowsSDDLTrustee(trustee string) (string, error) {
+	sid, err := windows.StringToSid(trustee)
+	if err != nil {
+		return "", err
+	}
+	return sid.String(), nil
 }
