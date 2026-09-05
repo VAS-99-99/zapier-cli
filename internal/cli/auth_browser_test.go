@@ -340,6 +340,41 @@ func TestAuthBrowserWaitsForPostLoginZapierURL(t *testing.T) {
 	}
 }
 
+func TestAuthBrowserRetriesBlankPageBeforeAskingForLogin(t *testing.T) {
+	fake := &fakeAgentBrowser{currentURL: "about:blank"}
+	stubAgentBrowserGlobals(t, t.TempDir(), fake)
+	opens := 0
+	err := ensureAgentBrowserLoginPage(context.Background(), "fake", "config", "test", func(context.Context) error {
+		opens++
+		fake.currentURL = zapierLoginURL
+		return nil
+	})
+	if err != nil || opens != 1 {
+		t.Fatalf("retry: opens=%d, err=%v", opens, err)
+	}
+}
+
+func TestAuthBrowserNeverAsksForLoginOnBlankPage(t *testing.T) {
+	fake := &fakeAgentBrowser{currentURL: "about:blank"}
+	stubAgentBrowserGlobals(t, t.TempDir(), fake)
+	cmd := newAuthBrowserCmd(&rootFlags{})
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "login page did not load") {
+		t.Fatalf("expected navigation failure, got %v", err)
+	}
+	if strings.Contains(output.String(), "Waiting for sign-in") {
+		t.Fatal("asked user to sign in on a blank page")
+	}
+	for _, call := range fake.snapshotCalls() {
+		if containsArg(call.args, "cookies") {
+			t.Fatal("read cookies before login page loaded")
+		}
+	}
+}
+
 func TestAuthBrowserRejectsUnsupportedPlatformBeforeInstall(t *testing.T) {
 	previousGOOS := browserRuntimeGOOS
 	previousGOARCH := browserRuntimeGOARCH

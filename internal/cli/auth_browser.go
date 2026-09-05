@@ -185,6 +185,12 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 			if openFailed {
 				return authErr(errors.New("the private Zapier sign-in window could not be opened"))
 			}
+			pageCtx, cancelPage := context.WithTimeout(cmd.Context(), agentBrowserCommandTimeout)
+			pageErr := ensureAgentBrowserLoginPage(pageCtx, binaryPath, browserConfigPath, sessionName, openBrowser)
+			cancelPage()
+			if pageErr != nil {
+				return authErr(pageErr)
+			}
 
 			fmt.Fprintln(cmd.ErrOrStderr(), "Sign in to Zapier in the new browser window. Waiting for sign-in to finish...")
 			wait := browserConnectTimeout
@@ -478,12 +484,23 @@ func makeAgentBrowserSessionName() string {
 }
 
 func execAgentBrowserCommand(ctx context.Context, binary string, args ...string) (agentBrowserCommandResult, error) {
+	return execAgentBrowserWithEnvironment(ctx, privateAgentBrowserEnvironment(), binary, args...)
+}
+
+func execAgentBrowserWithEnvironment(ctx context.Context, environment []string, binary string, args ...string) (agentBrowserCommandResult, error) {
 	var stdout, stderr limitedCommandCapture
 	command := exec.CommandContext(ctx, binary, args...) // #nosec G204 -- binary is the hash-verified managed tool and args are fixed by this package.
+	// A detached browser daemon can inherit these pipes. Bound the drain after
+	// the helper exits, including when a context deadline kills the helper.
+	command.WaitDelay = 250 * time.Millisecond
 	command.Stdout = &stdout
 	command.Stderr = &stderr
-	command.Env = privateAgentBrowserEnvironment()
+	command.Env = environment
 	err := command.Run()
+	if errors.Is(err, exec.ErrWaitDelay) && ctx.Err() == nil {
+		// The helper exited successfully; callers still validate its response.
+		err = nil
+	}
 	return agentBrowserCommandResult{
 		Stdout:    stdout.Bytes(),
 		Stderr:    stderr.Bytes(),
@@ -491,17 +508,9 @@ func execAgentBrowserCommand(ctx context.Context, binary string, args ...string)
 	}, err
 }
 
-// execAgentBrowserOpen intentionally gives the browser launcher direct null
-// handles instead of Go-managed output pipes. The launcher starts a persistent
-// daemon/browser process which may inherit its handles; pipe capture would make
-// cmd.Wait block until that long-lived child exits. The open command contains no
-// credential output, and all cookie-bearing commands still use bounded in-memory
-// capture through execAgentBrowserCommand.
+// Validate navigation as well as process exit. A helper may return a failed
+// JSON response with exit code zero; that must never become a login wait.
 func execAgentBrowserOpen(ctx context.Context, binary string, args ...string) error {
-	command := exec.CommandContext(ctx, binary, args...) // #nosec G204 -- binary is the hash-verified managed tool and args are fixed by this package.
-	// Leave stdout/stderr nil so os/exec connects them directly to os.DevNull.
-	// Assigning io.Discard would make os/exec create copy pipes and recreate the
-	// inherited-handle hang this separate runner exists to prevent.
 	controlled := []string{
 		"AGENT_BROWSER_HEADED=true",
 		"AGENT_BROWSER_NO_WEBMCP=true",
@@ -515,8 +524,15 @@ func execAgentBrowserOpen(ctx context.Context, binary string, args ...string) er
 	if namespace := commandArgumentValue(args, "--namespace"); namespace != "" {
 		controlled = append(controlled, "AGENT_BROWSER_NAMESPACE="+namespace)
 	}
-	command.Env = privateAgentBrowserEnvironment(controlled...)
-	return command.Run()
+	result, err := execAgentBrowserWithEnvironment(ctx, privateAgentBrowserEnvironment(controlled...), binary, args...)
+	if err != nil {
+		return err
+	}
+	if result.Truncated {
+		return errors.New("browser navigation response exceeded the output limit")
+	}
+	var data json.RawMessage
+	return decodeAgentBrowserData(result.Stdout, &data)
 }
 
 func privateAgentBrowserEnvironment(controlled ...string) []string {
@@ -564,6 +580,24 @@ func (c *limitedCommandCapture) Write(data []byte) (int, error) {
 
 func (c *limitedCommandCapture) Bytes() []byte {
 	return append([]byte(nil), c.buffer.Bytes()...)
+}
+
+func ensureAgentBrowserLoginPage(ctx context.Context, binaryPath, configPath, sessionName string, open func(context.Context) error) error {
+	for attempt := 0; attempt < 2; attempt++ {
+		currentURL, err := agentBrowserCurrentURL(ctx, binaryPath, configPath, sessionName)
+		if err == nil {
+			parsed, parseErr := url.Parse(currentURL)
+			if parseErr == nil && parsed.Scheme == "https" && isZapierCookieDomain(parsed.Hostname()) {
+				return nil
+			}
+		}
+		if attempt == 0 && ctx.Err() == nil {
+			if err := open(ctx); err != nil {
+				break
+			}
+		}
+	}
+	return errors.New("the browser opened but the Zapier login page did not load; check the internet connection and run auth browser again")
 }
 
 func waitForAgentBrowserLogin(ctx context.Context, binaryPath, configPath, sessionName string) (string, int, error) {
