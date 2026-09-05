@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "id": "browser-login-lifecycle",
+  "applied_at": "2026-09-05",
+  "base_run_id": "20260903-213259-ecc098e3",
+  "base_printing_press_version": "4.31.6",
+  "summary": "Keep an in-progress login after navigation timeouts, preserve SSO redirects, and stop polling lost browser sessions.",
+  "reason": "This downstream CLI owns a pinned browser helper. Navigation failures were incorrectly treated as missing Chrome, SSO redirects were navigated away from, and helper reads could relaunch a closed browser. Successful session validation must be distinguished from the subsequent user account-confirmation checkpoint.",
+  "files": [
+    "internal/cli/auth_browser.go",
+    "internal/cli/auth_browser_test.go",
+    "internal/cli/auth_browser_lifecycle_test.go",
+    "README.md",
+    "SKILL.md"
+  ],
+  "call_sites": [
+    "agentBrowserOpenResult(",
+    "requireAgentBrowserWindow(",
+    "TestAuthBrowserNavigationFailureDoesNotInstallOrReopen",
+    "TestAuthBrowserSSORedirectDoesNotRestartNavigation",
+    "TestAuthBrowserLostWindowNeverPollsOrNavigates"
+  ],
+  "validated_outcome": "Synthetic browser tests cover timeout recovery, missing-browser-only installation, uninterrupted SSO, lost-window fail-stop behavior, and separate connected/account-confirmation output. Real user login remains a manual acceptance check. The pinned helper has no atomic no-relaunch read, so a browser close between a successful session probe and its next read remains a helper-level race."
+}

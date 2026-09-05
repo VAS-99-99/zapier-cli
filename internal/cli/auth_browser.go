@@ -52,17 +52,19 @@ var zapierAPIPaths = []string{
 }
 
 var (
-	browserRuntimeGOOS       = runtime.GOOS
-	browserRuntimeGOARCH     = runtime.GOARCH
-	browserUserConfigDir     = os.UserConfigDir
-	browserUserCacheDir      = os.UserCacheDir
-	browserPollInterval      = 500 * time.Millisecond
-	ensureAgentBrowserTool   = ensurePinnedAgentBrowser
-	runAgentBrowserCommand   = execAgentBrowserCommand
-	runAgentBrowserOpen      = execAgentBrowserOpen
-	newAgentBrowserSession   = makeAgentBrowserSessionName
-	agentBrowserHTTPClient   = &http.Client{Timeout: 2 * time.Minute}
-	browserSessionHTTPClient = &http.Client{Timeout: browserSessionVerifyTimeout}
+	errAgentBrowserMissing    = errors.New("private browser is not installed")
+	errAgentBrowserWindowLost = errors.New("the private sign-in browser was closed or became unavailable; run auth browser again when ready")
+	browserRuntimeGOOS        = runtime.GOOS
+	browserRuntimeGOARCH      = runtime.GOARCH
+	browserUserConfigDir      = os.UserConfigDir
+	browserUserCacheDir       = os.UserCacheDir
+	browserPollInterval       = 500 * time.Millisecond
+	ensureAgentBrowserTool    = ensurePinnedAgentBrowser
+	runAgentBrowserCommand    = execAgentBrowserCommand
+	runAgentBrowserOpen       = execAgentBrowserOpen
+	newAgentBrowserSession    = makeAgentBrowserSessionName
+	agentBrowserHTTPClient    = &http.Client{Timeout: 2 * time.Minute}
+	browserSessionHTTPClient  = &http.Client{Timeout: browserSessionVerifyTimeout}
 )
 
 type agentBrowserRelease struct {
@@ -173,7 +175,7 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 			cancelOpen()
 			browserInstalled := false
 			openFailed := openErr != nil
-			if openFailed {
+			if errors.Is(openErr, errAgentBrowserMissing) {
 				if noInstall {
 					return authErr(errors.New("the private Zapier sign-in window could not be opened; rerun without --no-install to install Chrome for Testing if needed"))
 				}
@@ -191,11 +193,17 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 				cancelOpen()
 				openFailed = openErr != nil
 			}
-			if openFailed {
-				return authErr(errors.New("the private Zapier sign-in window could not be opened"))
+			if cmd.Context().Err() != nil || errors.Is(openErr, context.Canceled) {
+				return authErr(errors.New("Zapier sign-in canceled; run auth browser again"))
 			}
 			pageCtx, cancelPage := context.WithTimeout(cmd.Context(), agentBrowserCommandTimeout)
-			pageErr := ensureAgentBrowserLoginPage(pageCtx, binaryPath, browserConfigPath, sessionName, openBrowser)
+			// A navigation wait may time out after the window has opened. Inspect
+			// that window before giving up, without interrupting login or SSO.
+			retryBlank := openBrowser
+			if openFailed {
+				retryBlank = nil
+			}
+			pageErr := ensureAgentBrowserLoginPage(pageCtx, binaryPath, browserConfigPath, sessionName, retryBlank)
 			cancelPage()
 			if pageErr != nil {
 				return authErr(pageErr)
@@ -237,18 +245,20 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 			}
 
 			out := map[string]any{
-				"credential_saved":       true,
-				"session_validated":      true,
-				"verified":               false,
-				"verification":           "pending account check",
-				"browser":                "Chrome",
-				"browser_tool":           "agent-browser",
-				"browser_tool_version":   agentBrowserVersion,
-				"browser_tool_installed": installed,
-				"browser_installed":      browserInstalled,
-				"cookies_imported":       cookieCount,
-				"config_path":            cfg.Path,
-				"next_step":              "Run only zapier-pp-cli session --agent --no-learn to identify the connected account, then stop for confirmation.",
+				"connected":                     true,
+				"account_confirmation_required": true,
+				"credential_saved":              true,
+				"session_validated":             true,
+				"verified":                      false,
+				"verification":                  "pending account check",
+				"browser":                       "Chrome",
+				"browser_tool":                  "agent-browser",
+				"browser_tool_version":          agentBrowserVersion,
+				"browser_tool_installed":        installed,
+				"browser_installed":             browserInstalled,
+				"cookies_imported":              cookieCount,
+				"config_path":                   cfg.Path,
+				"next_step":                     "Run only zapier-pp-cli session --agent --no-learn to identify the connected account, then stop for confirmation.",
 			}
 			if !cfg.AgentcookieManagedByExternalStore() {
 				out["credentials_path"] = credentialSavePath(cfg)
@@ -256,7 +266,7 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 			if flags.asJSON {
 				return printJSONFiltered(cmd.OutOrStdout(), out, flags)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Saved the private Zapier browser session (%d scoped cookies imported); account verification is still pending.\n", cookieCount)
+			fmt.Fprintf(cmd.OutOrStdout(), "Connected to Zapier and saved the validated session (%d scoped cookies imported). Confirm the account next.\n", cookieCount)
 			fmt.Fprintf(cmd.OutOrStdout(), "Session cookie saved to %s\n", credentialSavePath(cfg))
 			fmt.Fprintln(cmd.OutOrStdout(), "Next: run only 'zapier-pp-cli session --agent --no-learn' to identify the connected account, then stop for confirmation.")
 			return nil
@@ -544,6 +554,24 @@ func execAgentBrowserOpen(ctx context.Context, binary string, args ...string) er
 		controlled = append(controlled, "AGENT_BROWSER_NAMESPACE="+namespace)
 	}
 	result, err := execAgentBrowserWithEnvironment(ctx, privateAgentBrowserEnvironment(controlled...), binary, args...)
+	return agentBrowserOpenResult(ctx, result, err)
+}
+
+func agentBrowserOpenResult(ctx context.Context, result agentBrowserCommandResult, err error) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	// Classify only the pinned helper's explicit missing-browser response.
+	// Never echo its raw output, which may contain URLs or session values.
+	var failure struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}
+	if !result.Truncated && json.Unmarshal(result.Stdout, &failure) == nil && !failure.Success &&
+		strings.HasPrefix(failure.Error, "Chrome not found.") &&
+		strings.Contains(failure.Error, "Run `agent-browser install` to download Chrome") {
+		return errAgentBrowserMissing
+	}
 	if err != nil {
 		return err
 	}
@@ -604,16 +632,28 @@ func (c *limitedCommandCapture) Bytes() []byte {
 func ensureAgentBrowserLoginPage(ctx context.Context, binaryPath, configPath, sessionName string, open func(context.Context) error) error {
 	for attempt := 0; attempt < 2; attempt++ {
 		currentURL, err := agentBrowserCurrentURL(ctx, binaryPath, configPath, sessionName)
+		if errors.Is(err, errAgentBrowserWindowLost) {
+			return err
+		}
+		if err != nil && ctx.Err() == nil {
+			// Navigation can briefly destroy the page's execution context.
+			// Retry the read, never the navigation, while the window is alive.
+			continue
+		}
 		if err == nil {
 			parsed, parseErr := url.Parse(currentURL)
-			if parseErr == nil && parsed.Scheme == "https" && isZapierCookieDomain(parsed.Hostname()) {
+			// HTTPS redirects can be an identity provider or an MFA challenge.
+			// Cookie capture still requires a Zapier URL and a validated session.
+			if parseErr == nil && parsed.Scheme == "https" && parsed.Hostname() != "" {
 				return nil
 			}
 		}
-		if attempt == 0 && ctx.Err() == nil {
+		if attempt == 0 && err == nil && currentURL == "about:blank" && open != nil && ctx.Err() == nil {
 			if err := open(ctx); err != nil {
 				break
 			}
+		} else {
+			break
 		}
 	}
 	return errors.New("the browser opened but the Zapier login page did not load; check the internet connection and run auth browser again")
@@ -627,16 +667,20 @@ func waitForAgentBrowserLogin(ctx context.Context, binaryPath, configPath, sessi
 			return "", 0, browserLoginWaitError(ctx, lastFailure)
 		}
 		currentURL, err := agentBrowserCurrentURL(ctx, binaryPath, configPath, sessionName)
+		if errors.Is(err, errAgentBrowserWindowLost) && ctx.Err() == nil {
+			return "", 0, err
+		}
 		if err == nil && isSignedInZapierURL(currentURL) {
 			cookies, cookieErr := agentBrowserCookies(ctx, binaryPath, configPath, sessionName)
-			if cookieErr == nil {
-				header, count := zapierCookieHeader(cookies)
-				if count > 0 {
-					if err := verifyAgentBrowserSession(ctx, header); err == nil {
-						return header, count, nil
-					} else {
-						lastFailure = err.Error()
-					}
+			if errors.Is(cookieErr, errAgentBrowserWindowLost) && ctx.Err() == nil {
+				return "", 0, cookieErr
+			}
+			header, count := zapierCookieHeader(cookies)
+			if cookieErr == nil && count > 0 {
+				if err := verifyAgentBrowserSession(ctx, header); err == nil {
+					return header, count, nil
+				} else {
+					lastFailure = err.Error()
 				}
 			}
 		}
@@ -727,7 +771,32 @@ func browserSessionPositiveID(raw json.RawMessage) bool {
 	return err == nil && id > 0
 }
 
+// session info bypasses daemon startup and is a skip-launch action in the
+// pinned helper. In contrast, get url and cookies can relaunch a closed browser.
+// The helper has no atomic no-relaunch read, so a close between this probe and
+// the next read can still race. Stop on any lost session instead of polling it.
+func requireAgentBrowserWindow(ctx context.Context, binaryPath, configPath, sessionName string) error {
+	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	result, err := runAgentBrowserCommand(probeCtx, binaryPath, "--config", configPath, "--namespace", sessionName, "--session", sessionName, "session", "info", "--json")
+	var data struct {
+		Active  bool `json:"active"`
+		Runtime struct {
+			BrowserLaunched bool `json:"browserLaunched"`
+			PageCount       int  `json:"pageCount"`
+		} `json:"runtime"`
+	}
+	if err != nil || result.Truncated || decodeAgentBrowserData(result.Stdout, &data) != nil ||
+		!data.Active || !data.Runtime.BrowserLaunched || data.Runtime.PageCount < 1 {
+		return errAgentBrowserWindowLost
+	}
+	return nil
+}
+
 func agentBrowserCurrentURL(ctx context.Context, binaryPath, configPath, sessionName string) (string, error) {
+	if err := requireAgentBrowserWindow(ctx, binaryPath, configPath, sessionName); err != nil {
+		return "", err
+	}
 	result, err := runAgentBrowserCommand(ctx, binaryPath, "--config", configPath, "--namespace", sessionName, "--session", sessionName, "get", "url", "--json")
 	if err != nil || result.Truncated {
 		return "", errors.New("browser status unavailable")
@@ -745,6 +814,9 @@ func agentBrowserCurrentURL(ctx context.Context, binaryPath, configPath, session
 }
 
 func agentBrowserCookies(ctx context.Context, binaryPath, configPath, sessionName string) ([]agentBrowserCookie, error) {
+	if err := requireAgentBrowserWindow(ctx, binaryPath, configPath, sessionName); err != nil {
+		return nil, err
+	}
 	result, err := runAgentBrowserCommand(ctx, binaryPath, "--config", configPath, "--namespace", sessionName, "--session", sessionName, "cookies", "--json")
 	if err != nil || result.Truncated {
 		return nil, errors.New("browser cookies unavailable")

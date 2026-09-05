@@ -50,6 +50,9 @@ func (f *fakeAgentBrowser) run(_ context.Context, binary string, args ...string)
 	if containsArg(args, "install") {
 		return agentBrowserCommandResult{}, nil
 	}
+	if hasArgSequence(args, "session", "info") {
+		return jsonAgentBrowserResult(`{"active":true,"runtime":{"browserLaunched":true,"pageCount":1}}`), nil
+	}
 	if hasArgSequence(args, "get", "url") {
 		return jsonAgentBrowserResult(`{"url":"` + f.currentURL + `"}`), nil
 	}
@@ -140,8 +143,8 @@ func stubAgentBrowserGlobals(t *testing.T, configRoot string, fake *fakeAgentBro
 	}
 	runAgentBrowserCommand = fake.run
 	runAgentBrowserOpen = func(ctx context.Context, binary string, args ...string) error {
-		_, err := fake.run(ctx, binary, args...)
-		return err
+		result, err := fake.run(ctx, binary, args...)
+		return agentBrowserOpenResult(ctx, result, err)
 	}
 	newAgentBrowserSession = func() string { return "zapier-pp-auth-test" }
 	browserPollInterval = time.Millisecond

@@ -31,7 +31,10 @@ Complete these five stages in order. The team repository is
    the credential store, or request a cookie or token. The user completes the
    visible Zapier login outside the agent and reports `connected`.
    The command performs its own session-only validation before saving cookies;
-   its automatic browser close is expected after a valid session is saved.
+   its automatic browser close is expected after session validation, before
+   credential saving. `connected: true` with `account_confirmation_required:
+   true` means login succeeded and step 4 is next, not another login attempt.
+   Leave retries to the user. Do not start overlapping login commands.
 4. Only after the user reports `connected`, make this first live call:
    `zapier-pp-cli session --agent --no-learn`. Show the exact account identity
    and stop for confirmation. Before confirmation, do not run `doctor` or any

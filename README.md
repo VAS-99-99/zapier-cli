@@ -96,8 +96,16 @@ needed and opens a dedicated visible window. Run this command yourself rather
 than asking an agent to handle authentication. Sign in to Zapier there. The CLI
 validates the candidate session using only Zapier's session GET before saving
 it. Cookies alone, an unfinished login, or an expired session are not success.
-The browser closes automatically after a valid session is saved. The separate
-account check below still requires your confirmation.
+The CLI closes the browser after validating the session, then saves the
+credential. Its success message says "Connected to Zapier". The separate
+account check below still requires your confirmation; this is not a failed
+login and is not a reason to open another login window.
+
+Leave the sign-in command running while completing SSO or MFA. It allows five
+minutes for sign-in; use `zapier-pp-cli auth browser --timeout 10m` if needed.
+Run only one login command at a time. If the window closes before success,
+read the terminal error before retrying. The CLI checks for a live browser
+before polling, and stops when it detects a closed or unavailable window.
 
 Credentials stay in the CLI's permission-checked local credential file; they
 are not printed or exported for the agent. This file is not an encrypted
