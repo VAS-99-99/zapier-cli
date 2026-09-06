@@ -10,7 +10,7 @@
     ".github/workflows/release.yml",
     ".gitignore",
     "CLAUDE.md",
-    "CLAUDE_INSTALL_PROMPT.txt",
+    "prompts/install-cli.txt",
     "README.md",
     "SHIP_PLAN.md",
     "SKILL.md",

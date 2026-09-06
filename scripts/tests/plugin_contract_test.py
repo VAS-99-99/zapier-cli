@@ -12,13 +12,14 @@ PLUGIN = ROOT / "plugins/zapier-read-only"
 class PluginContract(unittest.TestCase):
     def test_readme_contains_copyable_cowork_and_schedule_prompts(self):
         readme = (ROOT / "README.md").read_text()
-        for name in ("COWORK_INSTALL_PROMPT.txt", "COWORK_REPOSITORY_INSTALL_PROMPT.txt",
-                     "SCHEDULED_TASK_PROMPT.txt"):
+        for name in ("prompts/install-cowork-zip.txt", "prompts/install-cowork-repository.txt",
+                     "prompts/scheduled-check.txt"):
             self.assertIn((ROOT / name).read_text().strip(), readme)
 
     def test_update_prompt_matches_readme_and_preserves_connection(self):
-        prompt = (ROOT / 'UPDATE_PROMPT.txt').read_text().strip()
+        prompt = (ROOT / 'prompts/update-cli.txt').read_text().strip()
         self.assertIn(prompt, (ROOT / 'README.md').read_text())
+        prompt = " ".join(prompt.split())
         for expected in ('--agent claude', '--agent codex', '-Agent Claude',
                          '-Agent Codex', 'Preserve existing credentials',
                          'session --agent --no-learn', 'Never change anything in Zapier'):

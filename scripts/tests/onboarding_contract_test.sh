@@ -12,7 +12,7 @@ root = Path(sys.argv[1])
 readme = (root / "README.md").read_text(encoding="utf-8")
 skill = (root / "SKILL.md").read_text(encoding="utf-8")
 agents = (root / "AGENTS.md").read_text(encoding="utf-8")
-prompt_file = (root / "CLAUDE_INSTALL_PROMPT.txt").read_text(encoding="utf-8")
+prompt_file = (root / "prompts/install-cli.txt").read_text(encoding="utf-8")
 installers = "\n".join(
     (root / name).read_text(encoding="utf-8") for name in ("install.sh", "install.ps1")
 )
@@ -26,7 +26,10 @@ if not match:
     raise SystemExit("README is missing the copyable agent-install prompt")
 prompt = match.group(1)
 if prompt.strip() != prompt_file.strip():
-    raise SystemExit("README copyable prompt differs from CLAUDE_INSTALL_PROMPT.txt")
+    raise SystemExit("README copyable prompt differs from prompts/install-cli.txt")
+
+# Prompt wrapping is presentation; check required guidance independent of lines.
+prompt = " ".join(prompt.split())
 
 for forbidden in (
     "0.0.0-dev",

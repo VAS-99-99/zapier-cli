@@ -6,9 +6,9 @@ Both reuse the same saved Zapier connection under your OS user.
 
 | Where you want to use it | Copy this prompt | Where to paste it |
 | --- | --- | --- |
-| Claude Code or Codex | [Original install prompt](../CLAUDE_INSTALL_PROMPT.txt) | Claude Code or Codex running on your computer |
-| Claude Desktop Cowork, repository install | [Cowork repository install prompt](../COWORK_REPOSITORY_INSTALL_PROMPT.txt) | Claude Code or Codex running on your Mac or Windows computer |
-| Claude Desktop Cowork, ZIP upload | [Cowork install prompt](../COWORK_INSTALL_PROMPT.txt) | Claude Code or Codex running on your Mac or Windows computer |
+| Claude Code or Codex | [Install CLI](../prompts/install-cli.txt) | Claude Code or Codex running on your computer |
+| Claude Desktop Cowork, repository install | [Install Cowork from repository](../prompts/install-cowork-repository.txt) | Claude Code or Codex running on your Mac or Windows computer |
+| Claude Desktop Cowork, ZIP upload | [Install Cowork from ZIP](../prompts/install-cowork-zip.txt) | Claude Code or Codex running on your Mac or Windows computer |
 
 Open the prompt file, copy its full contents, and paste it into the host agent.
 The agent downloads a checksummed prebuilt release and prepares the setup.
