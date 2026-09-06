@@ -1,0 +1,18 @@
+{
+  "name": "zapier-cowork",
+  "version": "0.1.1",
+  "description": "Unofficial local Cowork connection for read-only Zapier inspection.",
+  "author": {
+    "name": "VAS-99-99"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Zapier Cowork",
+    "shortDescription": "Inspect Zapier through a local MCP companion.",
+    "longDescription": "Platform-specific package for local Claude Cowork. Reuses the same OS user's saved Zapier login and requires account confirmation before inspection.",
+    "developerName": "VAS-99-99",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Show my connected Zapier account and wait for confirmation."
+  }
+}

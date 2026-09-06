@@ -1,0 +1,11 @@
+{
+  "name": "zapier-cowork",
+  "version": "0.1.1",
+  "description": "Unofficial read-only Zapier inspection for local Cowork, using a bundled native MCP companion and your saved local login.",
+  "author": {
+    "name": "VAS-99-99"
+  },
+  "homepage": "https://github.com/VAS-99-99/zapier-cli#local-claude-cowork",
+  "repository": "https://github.com/VAS-99-99/zapier-cli",
+  "license": "Apache-2.0"
+}

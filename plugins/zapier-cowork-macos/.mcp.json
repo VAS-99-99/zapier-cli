@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "zapier": {
+      "command": "${HOME}/.local/bin/zapier-pp-mcp",
+      "args": [
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "ZAPIER_NO_LEARN": "true"
+      }
+    }
+  }
+}

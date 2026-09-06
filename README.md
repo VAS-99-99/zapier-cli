@@ -9,6 +9,23 @@ extension, or a Zapier developer token. The release installers provide the CLI
 and MCP binaries. `auth browser` manages its pinned browser helper and browser
 inside the CLI.
 
+## Set up a teammate
+
+Choose a route and copy the linked prompt into **Claude Code or Codex running
+on the teammate's computer**. These prompts install the CLI itself, not just
+a skill. Cowork's Linux shell cannot install a Mac or Windows host executable.
+
+| Use it in | Copy-paste setup prompt |
+| --- | --- |
+| Claude Code or Codex terminal | [Original CLI and agent-plugin setup](CLAUDE_INSTALL_PROMPT.txt), also shown below |
+| Claude Desktop Cowork, Add from a repository | [CLI plus repository-plugin setup](COWORK_REPOSITORY_INSTALL_PROMPT.txt) |
+| Claude Desktop Cowork, ZIP upload | [CLI plus Cowork ZIP setup](COWORK_INSTALL_PROMPT.txt) |
+
+The agent installs a checksummed release and reuses saved credentials.
+The teammate personally completes any GitHub/Zapier sign-in and app approval.
+See [teammate setup](docs/teammate-setup.md) for repository installation,
+the first working-check prompt, and daily-task instructions.
+
 ## Give this to Claude or Codex
 
 Copy the block below. It keeps authentication outside the agent, which avoids
@@ -26,6 +43,56 @@ Run only `zapier-pp-cli session --agent --no-learn` to check the existing connec
 
 Only after I explicitly reply `connected`, run `zapier-pp-cli session --agent --no-learn`, show the exact connected account, and stop for confirmation. Before I confirm that account, do not run doctor, list Zaps, inspect runs, or make any other Zapier request. Never perform a remote Zapier write.
 ```
+
+## Cowork setup prompts
+
+Copy the matching block into a host terminal agent. Each installs the CLI
+before preparing Cowork. Complete personal login and desktop approvals when
+asked. Use only one Cowork plugin variant at a time.
+
+<details>
+<summary>Repository installation: copy-paste prompt</summary>
+
+```text
+Set up our team's unofficial, read-only Zapier CLI and prepare Claude Desktop Cowork's Add from repository installation from https://github.com/VAS-99-99/zapier-cli. I authorize downloading and installing the prebuilt CLI. This prompt is for Claude Code or Codex running on my Mac or Windows host. If you are inside Cowork's Linux shell or a remote container, stop and tell me to paste it into a host terminal agent instead.
+
+Use the current directory if it is already this repository. Otherwise use only ./zapier-cli beneath the current directory. Verify and reuse an existing clone, preserving local changes and saved Zapier credentials; clone there if absent. Fetch and fast-forward only when safe. If the directory belongs to another project or cannot be updated safely, stop and explain. Read CLAUDE.md and docs/teammate-setup.md. For private GitHub access, reuse my authenticated GitHub CLI session. If access fails, tell me to sign in to GitHub CLI with an account that has repository access, then retry after I do so. Never request or print a token.
+
+Detect the actual host OS and CPU and use the repository's supported prebuilt release for it. On macOS run ./install.sh; on Windows run powershell -ExecutionPolicy Bypass -File .\install.ps1. Use the default install directory because the repository Cowork plugins refer to that location: $HOME/.local/bin on macOS or %LOCALAPPDATA%\Microsoft\WindowsApps on Windows. Preserve existing credentials and unrelated settings. The installer verifies the release archive. Do not install Go, Node.js, Python, or build from source. If no supported release is available, stop and report the missing release asset. Verify zapier-pp-cli version in this terminal and confirm zapier-pp-mcp exists in the default install directory. Report the installed version and whether it is a prerelease.
+
+Verify that the GitHub repository revision Cowork will fetch actually publishes the zapier-cowork-macos and zapier-cowork-windows marketplace entries and their referenced plugin files. Local uncommitted files do not prove teammates can install them. If the entries have not been published, stop and tell me the maintainer needs to publish the marketplace changes, or offer the separate checksummed ZIP route from docs/teammate-setup.md. Do not publish changes yourself.
+
+Give me these Claude Desktop steps: open Customize > Plugins, choose Add marketplace > Add from a repository, and enter https://github.com/VAS-99-99/zapier-cli.git. Install and enable zapier-cowork-macos on macOS or zapier-cowork-windows on Windows. I will approve the app's installation and local MCP server. Explain that GitHub CLI authentication does not prove Claude Desktop can access a private repository; if the app cannot fetch it, report its exact error and offer the verified ZIP route. This project remains unofficial; this is the app's supported repository install flow, not an Anthropic endorsement.
+
+Run only zapier-pp-cli session --agent --no-learn to check the saved connection. Show the exact returned account identity and stop for my confirmation before any other Zapier read. If logged out or expired, stop and tell me to personally run zapier-pp-cli auth browser on this host. Do not authenticate, open a login browser, inspect browser storage, or handle cookies. After I report connected, run only the session check again, show the exact account, and wait for confirmation.
+
+Give me the first Cowork test prompt from docs/teammate-setup.md to paste into a fresh local Cowork task after installation. Summarize what you actually verified and any remaining user steps. Do not claim Cowork is connected until its own session_check succeeds. Never change anything in Zapier. Do not create a scheduled task as part of installation.
+```
+
+</details>
+
+<details>
+<summary>ZIP installation: copy-paste prompt</summary>
+
+```text
+Set up our team's unofficial, read-only Zapier Cowork plugin from https://github.com/VAS-99-99/zapier-cli on this computer. I authorize downloading and installing the prebuilt CLI and downloading the matching Cowork plugin ZIP. This prompt is for Claude Code or Codex running on my Mac or Windows host. If you are inside Cowork's Linux shell or a remote container, stop and tell me to paste it into a host terminal agent instead.
+
+Use the current directory if it is already this repository. Otherwise use only ./zapier-cli beneath the current directory. Verify and reuse an existing clone, preserving local changes and saved Zapier credentials; clone there if absent. Fetch and fast-forward only when safe. If the directory belongs to another project or cannot be updated safely, stop and explain. Read CLAUDE.md and docs/teammate-setup.md. For private GitHub access, reuse my authenticated GitHub CLI session. If access fails, tell me to sign in to GitHub CLI with an account that has repository access, then retry after I do so. Never request or print a token.
+
+Detect the actual host OS and CPU. Select zapier-cowork_darwin_arm64.zip for Apple Silicon Mac, zapier-cowork_darwin_x86_64.zip for Intel Mac, or zapier-cowork_windows_x86_64.zip for Windows x64. Stop on an unsupported host. Inspect GitHub Releases and select the newest non-draft release containing that ZIP, COWORK_SHA256SUMS, the host's CLI archive, and SHA256SUMS. State its tag and whether it is a prerelease. If no release has these assets, stop and list the missing assets and release URL for the maintainer. Do not build or package from source as a fallback.
+
+Install that exact release's prebuilt CLI using ./install.sh --tag TAG on macOS, or powershell -ExecutionPolicy Bypass -File .\install.ps1 -Tag TAG on Windows, replacing TAG with the selected tag. The installer verifies the CLI archive. Do not install Go, Node.js, Python, or a separate browser helper. This is a Cowork setup; an additional terminal-agent plugin is not required. Verify zapier-pp-cli version in this terminal, fixing current-command resolution if needed.
+
+Download the matching Cowork ZIP and COWORK_SHA256SUMS from the same release to a clearly named subdirectory of my Downloads folder. Use gh release download for private assets with my existing GitHub authentication. Verify the ZIP's exact filename entry against its SHA-256 using the host's built-in tools, such as shasum -a 256 on macOS or Get-FileHash -Algorithm SHA256 on Windows. Stop on a missing entry or mismatch. Leave the ZIP zipped. Report the release tag, checksum result, and exact clickable local ZIP path. GitHub's source-code ZIP and the CLI archive are not Cowork upload files.
+
+Guide me through uploading that ZIP in Claude Desktop's Customize > Plugins upload flow, enabling zapier-cowork, and approving its local MCP server. The Add marketplace repository dialog does not accept ZIP uploads. I will handle the app's install approval. Do not claim Cowork is connected until its own session_check succeeds.
+
+For the saved connection, run only zapier-pp-cli session --agent --no-learn. Show the exact returned account identity and stop for my confirmation before any other Zapier read. If logged out or expired, stop and tell me to personally run zapier-pp-cli auth browser on this host. Do not authenticate, open a login browser, inspect browser storage, or handle cookies. After I report connected, run only the session check again, show the exact account, and wait for confirmation.
+
+Give me the first Cowork test prompt from docs/teammate-setup.md to paste into a fresh local Cowork task after upload. Summarize what you actually verified and any remaining user steps. Never change anything in Zapier. Do not create a scheduled task as part of installation.
+```
+
+</details>
 
 ## Updates for existing users
 
@@ -158,6 +225,48 @@ isn't picked automatically. Skill discovery is model-dependent, not a guarantee
 that every prompt invokes it. Installing the plugin alone does not install the
 CLI binary; the combined installer above installs both.
 
+### What a new project receives
+
+The executables live outside your project. On macOS/Linux, installation uses
+`$HOME/.local/bin` unless `XDG_BIN_HOME` or `--install-dir` selects another
+directory. On Windows it uses `%LOCALAPPDATA%\\Microsoft\\WindowsApps`.
+`PATH` makes the command available from different folders. The terminal skill
+also knows the default paths when a new host has an older PATH.
+
+The repository clone contains source and setup files; it is not needed for
+every inspection. Agent plugins are registered separately through each host's
+user-level plugin manager and cached by that host. The Cowork repository
+plugin uses the installed MCP executable; a Cowork ZIP carries its own
+executables and needs its own update when they change.
+
+The installer registers the terminal plugin for your user, not just this
+repository. Its `zapier` skill contains the CLI location, account checkpoint,
+runtime command discovery, Zap lookup, run inspection, and coverage rules.
+You do not need to copy this repository's `CLAUDE.md` into each project.
+
+| Instructions | Purpose |
+| --- | --- |
+| [CLAUDE.md](CLAUDE.md) and [setup skill](SKILL.md) | Guide an agent installing from this repository |
+| [Terminal runtime skill](plugins/zapier-read-only/skills/zapier/SKILL.md) | Installed by `--agent claude` or `--agent codex`; available in fresh projects |
+| [Cowork runtime skill](cowork/zapier-cowork/skills/zapier/SKILL.md) | Included in the Cowork plugins; uses host MCP, not shell commands |
+
+After setup, start a new chat in an unrelated project and paste this, replacing
+the bracketed text with the Zap's name or URL:
+
+```text
+Go check if this Zap has any issues: [Zap name or URL]. Inspect the previous
+24 hours using the installed Zapier inspection skill and its CLI or local MCP.
+Reuse my saved login. Check the connected account first. Do not modify Zapier.
+```
+
+The expected first result is a real session check showing the account, not a
+request to install again. Confirm the account, then the agent should resolve
+the Zap, inspect history, and explain failures with coverage limits. Automatic
+selection depends on the model. If it misses the skill, explicitly select
+`/zapier-read-only:zapier` in Claude Code, the installed `zapier` skill in Codex,
+or the enabled Zapier Cowork plugin's skill in Cowork. Do not claim onboarding
+passed until this fresh-project check succeeds in the intended host.
+
 ### Optional MCP connection
 
 The installer prints commands with the absolute path to `zapier-pp-mcp`. Use
@@ -175,6 +284,102 @@ codex mcp add zapier -- zapier-pp-mcp
 The MCP server reads the same protected local credential store as the same OS
 user. Do not add a Zapier cookie or token to the MCP configuration. Restart or
 reconnect the host after changing its MCP registration.
+
+### Local Claude Cowork
+
+Cowork needs its own plugin. Installing the Claude Code skill does not make a
+macOS or Windows executable available in Cowork's Linux shell.
+
+For **Add from a repository**, use the [repository setup prompt](COWORK_REPOSITORY_INSTALL_PROMPT.txt).
+It installs the prebuilt CLI first, then guides you to add
+`https://github.com/VAS-99-99/zapier-cli.git` and choose `zapier-cowork-macos`
+or `zapier-cowork-windows`. This is Claude's supported marketplace flow for
+our unofficial plugin. The entries must be published to GitHub before remote
+installation works. Use one Cowork route at a time to avoid duplicate tools.
+
+For the self-contained **ZIP route**:
+
+1. Get the matching **`zapier-cowork_*.zip`** package from your maintainer or a
+   release that includes Cowork assets: `darwin_arm64` for Apple Silicon,
+   `darwin_x86_64` for Intel Mac, or `windows_x86_64` for Windows x64.
+   Use `COWORK_SHA256SUMS` to verify the download. The CLI archives and their
+   `SHA256SUMS` are separate assets.
+2. In Claude Desktop, open **Cowork → Customize → Plugins** and upload the
+   custom plugin ZIP. Enable it and approve its local MCP server when asked.
+3. Start a fresh **local** Cowork task and paste:
+
+   ```text
+   Use the zapier-cowork plugin's Zapier skill and local MCP tools. Call only session_check, show my connected email and account ID, and stop for my confirmation. Reuse my saved login. Do not run shell commands, open a login browser, or change anything in Zapier.
+   ```
+
+The package includes the native CLI and MCP companion. No Go, Node.js, Python,
+terminal PATH change, or credential copying is needed to run it. It uses the
+same OS user's saved login; if missing or expired, personally run
+`zapier-pp-cli auth browser` using the normal installed CLI, then retry the
+account check. A new Cowork task is not a reason to log in again.
+
+This requires **local MCP access**. The plugin does not create schedules;
+unattended reads require explicit authorization for an exact account.
+See [Cowork setup and
+acceptance](docs/cowork.md) for troubleshooting, updates, and packaging.
+The [verified Mac setup and scheduling notes](docs/cowork.md#verified-mac-setup-2026-09-06)
+record successful plugin discovery and login checks, the desktop controls,
+and the remaining acceptance gaps.
+
+## Set up a Cowork scheduled check
+
+First complete the Cowork plugin installation and its session test. In Claude
+Desktop, open **Scheduled → New task → Set up manually**:
+
+1. Enter a name such as `Daily Zapier failed-run check`.
+2. Choose **Daily**, **09:00**, and **Europe/Sofia** if offered. Verify the saved
+   next-run time; DST handling has not been verified.
+3. Turn **Require this computer ON**. Keep the computer awake for the run.
+4. For an unattended task, choose **Skip all approvals** and explicitly
+   authorize the exact account in the instructions below. App permissions
+   alone do not supply account authorization.
+5. Paste the completed prompt, save, and complete any device approval shown.
+   Keep an older cloud-only task paused to avoid duplicates.
+6. Use **Run now** to test local MCP and a completed report. To test the timer,
+   set a near-future time and wait without clicking Run now.
+
+Replace both placeholders with the Zapier identity you personally confirmed.
+Do not use your Claude login email unless it is also your Zapier email.
+The same block is in [SCHEDULED_TASK_PROMPT.txt](SCHEDULED_TASK_PROMPT.txt).
+
+```text
+Use the installed Zapier Cowork skill and local MCP tools to check for failed Zapier runs
+in the previous 24 hours.
+
+For this scheduled task only, I explicitly authorize unattended read-only
+checks of my personally confirmed account:
+Email: YOUR_CONFIRMED_EMAIL
+Account ID: YOUR_CONFIRMED_ACCOUNT_ID
+
+First verify session_check is available. If unavailable, report "Local Zapier
+MCP unavailable" and stop. Call session_check before any other Zapier read.
+Continue automatically only if logged in and the returned email and account
+ID both exactly match the authorized values above. If either is missing,
+login has expired, a placeholder remains, or either value differs, report the
+problem and stop. Do not authenticate or switch accounts.
+
+After a successful match, inspect run history across my Zaps for the previous
+24 hours. Summarize failures with Zap name, time in Europe/Sofia, failed step,
+error, suggested action, and run link when returned. State the Zaps and history
+pages inspected and any coverage limits. If no failures are found, say
+"No failures found in the inspected scope." Omit sensitive step inputs and
+outputs.
+
+Reuse saved credentials. Do not run shell commands, authenticate, open a
+browser, retry runs, edit Zaps, send webhooks, or change anything in Zapier.
+```
+
+A new run proves the timer fired; a completed report proves inspection worked.
+If the task still asks for confirmation after an exact match, check that its
+saved prompt replaced the old confirmation gate and update the plugin to load
+the current skill. Account mismatch or expired login must still stop the task.
+See [the full teammate guide](docs/teammate-setup.md) for first-session prompts
+and [verification status](docs/cowork.md#verified-mac-setup-2026-09-06).
 
 ## What it can do
 

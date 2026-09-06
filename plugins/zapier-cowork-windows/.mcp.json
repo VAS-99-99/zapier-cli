@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "zapier": {
+      "command": "${LOCALAPPDATA}/Microsoft/WindowsApps/zapier-pp-mcp.exe",
+      "args": [
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "ZAPIER_NO_LEARN": "true"
+      }
+    }
+  }
+}

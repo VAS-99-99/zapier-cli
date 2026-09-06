@@ -29,7 +29,9 @@ Complete these five stages in order. The team repository is
    `zapier-pp-cli version` in the current terminal. The host option also installs
    the user-level runtime skill plugin; start a fresh chat to load it. MCP is
    optional and is not required for terminal-based skill use.
-3. Stop and tell the user to run `zapier-pp-cli auth browser` personally in
+3. First check saved login with only `zapier-pp-cli session --agent --no-learn`.
+   If logged in, show the exact account and wait for confirmation, then proceed
+   to step 5. If missing or expired, tell the user to run `zapier-pp-cli auth browser` personally in
    their own terminal. Do not run authentication, inspect browser storage, read
    the credential store, or request a cookie or token. The user completes the
    visible Zapier login outside the agent and reports `connected`.

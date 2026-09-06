@@ -25,12 +25,14 @@ When asked to install this repository:
 3. Confirm `zapier-pp-cli version` works in the current terminal. Fix command
    resolution before handing control back. Do not ask the user to open another
    terminal or edit PATH.
-4. Stop before authentication. Tell the user to run
+4. Check saved login with only `zapier-pp-cli session --agent --no-learn`.
+   If logged in, show the exact account and stop for confirmation; skip login.
+   If missing or expired, tell the user to run
    `zapier-pp-cli auth browser` personally in their own terminal. The user
    completes the Zapier login outside Claude. Do not run the auth command,
    inspect browser storage, read the credential store, or request a cookie or
    token.
-5. Continue only after the user explicitly says `connected`. Run only
+5. After a needed login, continue only when the user says `connected`. Run only
    `zapier-pp-cli session --agent --no-learn`, show the exact account identity,
    and stop for confirmation. Do not make another Zapier request before that
    confirmation.

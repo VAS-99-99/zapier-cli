@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "id": "local-cowork-native-connection",
+  "applied_at": "2026-09-06",
+  "base_run_id": "20260903-213259-ecc098e3",
+  "base_printing_press_version": "4.31.6",
+  "summary": "Local Cowork needs a native plugin MCP companion with its sibling CLI and a session-first skill, not a host binary invoked from its Linux shell.",
+  "reason": "Terminal plugin discovery does not cross Cowork's execution boundary. A separately packaged native stdio connection reuses the same OS user's saved login without exporting credentials, changing Claude Code settings, or exposing a remote service; cloud Cowork remains unsupported.",
+  "files": [
+    "cowork/zapier-cowork/.claude-plugin/plugin.json",
+    "cowork/zapier-cowork/.codex-plugin/plugin.json",
+    "cowork/zapier-cowork/skills/zapier/SKILL.md",
+    "scripts/package-cowork.py",
+    "scripts/tests/cowork_package_test.py",
+    "scripts/tests/cowork_mcp_smoke.py",
+    "scripts/tests/claude_plugin_discovery_test.py",
+    ".github/workflows/release.yml",
+    "README.md",
+    "docs/cowork.md"
+  ],
+  "validated_outcome": "Synthetic archive tests exercise integrity, safe contents and deterministic native platform packages. Native macOS MCP tests prove startup/discovery makes no API requests, sibling resolution works without PATH, read-only fixture inspection succeeds and expired sessions fail. An isolated Claude loader advertises the skill and MCP tools. Actual Cowork UI and live-account acceptance remain user-owned."
+}

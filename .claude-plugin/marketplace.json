@@ -6,6 +6,16 @@
       "name": "zapier-read-only",
       "source": "./plugins/zapier-read-only",
       "description": "Unofficial read-only Zapier run inspection and failed-step diagnosis."
+    },
+    {
+      "name": "zapier-cowork-macos",
+      "source": "./plugins/zapier-cowork-macos",
+      "description": "Cowork on Mac (Apple Silicon or Intel). Install the prebuilt Zapier CLI first; uses its saved local login."
+    },
+    {
+      "name": "zapier-cowork-windows",
+      "source": "./plugins/zapier-cowork-windows",
+      "description": "Cowork on Windows x64. Install the prebuilt Zapier CLI first; uses its saved local login."
     }
   ]
 }

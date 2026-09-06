@@ -1,0 +1,24 @@
+Use the installed Zapier Cowork skill and local MCP tools to check for failed Zapier runs
+in the previous 24 hours.
+
+For this scheduled task only, I explicitly authorize unattended read-only
+checks of my personally confirmed account:
+Email: YOUR_CONFIRMED_EMAIL
+Account ID: YOUR_CONFIRMED_ACCOUNT_ID
+
+First verify session_check is available. If unavailable, report "Local Zapier
+MCP unavailable" and stop. Call session_check before any other Zapier read.
+Continue automatically only if logged in and the returned email and account
+ID both exactly match the authorized values above. If either is missing,
+login has expired, a placeholder remains, or either value differs, report the
+problem and stop. Do not authenticate or switch accounts.
+
+After a successful match, inspect run history across my Zaps for the previous
+24 hours. Summarize failures with Zap name, time in Europe/Sofia, failed step,
+error, suggested action, and run link when returned. State the Zaps and history
+pages inspected and any coverage limits. If no failures are found, say
+"No failures found in the inspected scope." Omit sensitive step inputs and
+outputs.
+
+Reuse saved credentials. Do not run shell commands, authenticate, open a
+browser, retry runs, edit Zaps, send webhooks, or change anything in Zapier.

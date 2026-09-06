@@ -121,12 +121,17 @@ jobs:
           ./scripts/tests/install_ps1_test.sh
           ./scripts/tests/onboarding_contract_test.sh
           python3 scripts/tests/plugin_contract_test.py
+          python3 scripts/tests/cowork_package_test.py
+          python3 scripts/tests/cowork_marketplace_test.py
 
       - name: Build deterministic archives
         run: ./scripts/package-release.sh "${{ steps.release.outputs.tag }}" dist
 
       - name: Verify archives and version stamps
         run: ./scripts/verify-release.sh dist "${{ steps.release.outputs.tag }}"
+
+      - name: Package local Cowork plugins from verified binaries
+        run: python3 scripts/package-cowork.py --release-dir dist --tag "${{ steps.release.outputs.tag }}" --output-dir dist
 
       - name: Publish private GitHub Release
         shell: bash
@@ -141,6 +146,10 @@ jobs:
             dist/zapier-cli_darwin_x86_64.tar.gz
             dist/zapier-cli_linux_x86_64.tar.gz
             dist/SHA256SUMS
+            dist/zapier-cowork_darwin_arm64.zip
+            dist/zapier-cowork_darwin_x86_64.zip
+            dist/zapier-cowork_windows_x86_64.zip
+            dist/COWORK_SHA256SUMS
           )
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "release $tag already exists; refusing to replace published binaries or checksums" >&2

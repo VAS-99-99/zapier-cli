@@ -1,6 +1,6 @@
 ---
 name: zapier
-description: Inspect Zapier Zaps, run history, failed runs, and step inputs, outputs, or errors using the installed zapier-pp-cli. Use when the user asks to check their Zaps, inspect Zapier runs, diagnose a failed Zap, or connect this unofficial read-only CLI. Not for building Zapier integrations or changing Zaps.
+description: Inspect Zapier Zaps, run history, failed runs, and step inputs, outputs, or errors using the installed zapier-pp-cli. Use when the user asks whether a Zap has issues, to check their Zaps, inspect Zapier runs, diagnose a failed Zap, or connect this unofficial read-only CLI. Not for building Zapier integrations or changing Zaps.
 ---
 
 # Zapier read-only inspection
@@ -58,6 +58,14 @@ zapier-pp-cli runs list --zap <zap-id> --agent --no-learn
 zapier-pp-cli runs get <run-id> --agent --no-learn
 zapier-pp-cli diagnose <zap-id> --agent --no-learn
 ```
+
+For “check if this Zap has any issues,” resolve the supplied Zap name or URL
+to an exact Zap ID using live listing/search. Ask which Zap only if the request
+and live results do not identify one uniquely. Inspect its recent history,
+open failed runs and diagnose failed steps. If no time window was requested,
+use the previous 24 hours and state that scope. Discover supported search,
+time-filter and pagination flags through runtime help; do not invent flags.
+Explain the observed error and suggested action without replaying or editing.
 
 Report the inspected time window and pagination coverage. An empty failure
 list means no failures were found in that scope, not that the Zap is healthy.

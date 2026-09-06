@@ -10,6 +10,12 @@ PLUGIN = ROOT / "plugins/zapier-read-only"
 
 
 class PluginContract(unittest.TestCase):
+    def test_readme_contains_copyable_cowork_and_schedule_prompts(self):
+        readme = (ROOT / "README.md").read_text()
+        for name in ("COWORK_INSTALL_PROMPT.txt", "COWORK_REPOSITORY_INSTALL_PROMPT.txt",
+                     "SCHEDULED_TASK_PROMPT.txt"):
+            self.assertIn((ROOT / name).read_text().strip(), readme)
+
     def test_update_prompt_matches_readme_and_preserves_connection(self):
         prompt = (ROOT / 'UPDATE_PROMPT.txt').read_text().strip()
         self.assertIn(prompt, (ROOT / 'README.md').read_text())
@@ -24,8 +30,9 @@ class PluginContract(unittest.TestCase):
         self.assertEqual(claude["name"], "vas-zapier-cli")
         self.assertEqual(codex["name"], claude["name"])
         for catalog in (claude, codex):
-            self.assertEqual(len(catalog["plugins"]), 1)
-            entry = catalog["plugins"][0]
+            entries = [entry for entry in catalog["plugins"] if entry["name"] == PLUGIN.name]
+            self.assertEqual(len(entries), 1)
+            entry = entries[0]
             self.assertEqual(entry["name"], PLUGIN.name)
             source = entry["source"]
             path = source["path"] if isinstance(source, dict) else source

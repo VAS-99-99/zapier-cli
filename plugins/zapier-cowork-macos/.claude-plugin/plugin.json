@@ -1,0 +1,11 @@
+{
+  "name": "zapier-cowork-macos",
+  "version": "0.1.1",
+  "description": "Local Cowork Zapier inspection on macos. Requires the prebuilt CLI installed at its default location; read-only, saved login only.",
+  "author": {
+    "name": "VAS-99-99"
+  },
+  "homepage": "https://github.com/VAS-99-99/zapier-cli#local-claude-cowork",
+  "repository": "https://github.com/VAS-99-99/zapier-cli",
+  "license": "Apache-2.0"
+}

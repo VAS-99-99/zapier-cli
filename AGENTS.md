@@ -39,7 +39,10 @@ Normal-user installation must use the checksummed GitHub Release via
 installer can also register the user-level runtime skill with `--agent claude`
 or `--agent codex`, or PowerShell `-Agent Claude` / `-Agent Codex`. MCP is optional.
 In each fresh chat, run only `session --agent --no-learn`, show the exact account,
-and stop for confirmation before other live reads. Reuse saved credentials;
+and stop for confirmation before other live reads. Explicitly preauthorized
+Cowork scheduled checks use the narrow exact-account exception in
+`cowork/zapier-cowork/skills/zapier/SKILL.md`; scheduling alone is not approval.
+Reuse saved credentials;
 opening a new chat is not a reason to authenticate again. The CLI
 owns its pinned browser helper and browser; users do not install or operate Go,
 Node.js, npm, Playwright, agent-browser, a browser extension, or a cookie export
