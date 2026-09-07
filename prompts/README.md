@@ -1,14 +1,13 @@
 # Copy-paste prompts
 
-Choose one prompt for your task. Open the `.txt` file, copy its full contents,
-and paste it into the destination below. These are instructions to an agent,
-not commands to paste into a terminal shell.
+On macOS, use the Terminal commands in the [main README](../README.md#macos-quick-start).
+They install the CLI and Claude skill without asking an agent to run an installer.
 
-## First installation
+## Optional agent prompts
 
 | Prompt | What it sets up | Paste into |
 | --- | --- | --- |
-| [Install CLI](install-cli.txt) | CLI, MCP executable, and Claude Code or Codex user-level skill | Claude Code or Codex on your computer |
+| [Install CLI](install-cli.txt) | CLI, MCP executable, and Claude Code or Codex user-level skill | An agent host that permits installations |
 | [Install Cowork from repository](install-cowork-repository.txt) | CLI plus guidance for adding the matching Cowork repository plugin | Claude Code or Codex on your Mac or Windows computer |
 | [Install Cowork from ZIP](install-cowork-zip.txt) | CLI plus a verified Cowork ZIP and upload guidance | Claude Code or Codex on your Mac or Windows computer |
 
@@ -27,6 +26,6 @@ The scheduled prompt has two account placeholders you must replace. Follow the
 computer and permission settings. For Cowork plugin updates, use the
 [update guide](../docs/cowork.md#update-or-remove).
 
-All five prompts are also copyable in the [main README](../README.md#start-here).
+The optional prompts are also copyable in the [main README](../README.md#other-setup-paths).
 Tests keep those copies aligned. Agent operating instructions live in the
 installed skills; see [what a new project receives](../README.md#what-a-new-project-receives).

@@ -8,8 +8,7 @@ test data.
 1. Install the candidate's prebuilt binaries on the target OS without a source
    build. Verify `zapier-pp-cli version` works in the current terminal. Check
    installation without a tag as well as an explicitly selected version.
-   GitHub repository access and release download access are prerequisites for
-   this private repository.
+   GitHub repository access and release download access are prerequisites.
 2. Personally run `zapier-pp-cli auth browser`. Complete login, including MFA
    if enabled. The browser should wait through login and close after saving a
    valid session. Run `zapier-pp-cli session --agent --no-learn`, confirm the

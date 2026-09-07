@@ -9,42 +9,45 @@ extension, or a Zapier developer token. The release installers provide the CLI
 and MCP binaries. `auth browser` manages its pinned browser helper and browser
 inside the CLI.
 
-## Start here
+## macOS quick start
 
-Choose a route and copy the linked prompt into **Claude Code or Codex running
-on the teammate's computer**. These prompts install the CLI itself, not just
-a skill. Cowork's Linux shell cannot install a Mac or Windows host executable.
+Run this yourself in Terminal. Do not paste it into Claude.
 
-| I want to… | Use this prompt | Paste it into |
-| --- | --- | --- |
-| Install the CLI and agent skill | [Install CLI](#give-this-to-claude-or-codex) | Claude Code or Codex on your computer |
-| Set up Cowork through a repository | [Install Cowork from repository](#cowork-setup-prompts) | Claude Code or Codex on your computer |
-| Set up Cowork using a ZIP | [Install Cowork from ZIP](#cowork-setup-prompts) | Claude Code or Codex on your computer |
-| Update an existing CLI installation | [Update CLI](#updates-for-existing-users) | Claude Code or Codex on your computer |
-| Run a daily Cowork check | [Scheduled check](#set-up-a-cowork-scheduled-check) | Cowork's scheduled-task Instructions field |
+```bash
+git clone https://github.com/VAS-99-99/zapier-cli.git && cd zapier-cli
+./install.sh --agent claude
+export PATH="$HOME/.local/bin:$PATH"
+zapier-pp-cli auth browser
+```
 
-Expand the matching prompt below and copy only its code block. The standalone
-copies are grouped in [prompts/](prompts/README.md).
+The final command opens Zapier in your browser. If you are already signed in,
+it should connect automatically and close when finished.
 
-The agent installs a checksummed release and reuses saved credentials.
-The teammate personally completes any GitHub/Zapier sign-in and app approval.
-See [teammate setup](docs/teammate-setup.md) for repository installation,
-the first working-check prompt, and daily-task instructions.
+Start a fresh Claude chat afterwards and write:
 
-This repository is private. Teammates need repository access and their own
-GitHub sign-in to download it and its release assets.
+```text
+Check if this Zap has any issues: [Zap name]
+```
 
-**After setup:** [try it in a new project](#what-a-new-project-receives).
-**Reference:** [manual installation](#install-manually),
-[commands](#what-it-can-do), [troubleshooting](#troubleshooting).
+Claude should find `zapier-pp-cli`, check the connected Zapier account, and ask
+you to confirm it before inspecting runs.
 
-## Give this to Claude or Codex
+## Other setup paths
 
-Installs the CLI, MCP executable, and user-level skill for your terminal agent.
-Standalone copy: [prompts/install-cli.txt](prompts/install-cli.txt).
+| Need | Instructions |
+| --- | --- |
+| Cowork | [Cowork setup](#local-claude-cowork) |
+| Windows | [Windows installation](#install-manually) |
+| Update an existing install | [Update CLI](#updates-for-existing-users) |
+| Daily Cowork check | [Scheduled check](#set-up-a-cowork-scheduled-check) |
 
 <details>
-<summary>Install CLI and agent skill — expand to copy</summary>
+<summary>Optional agent-assisted installation</summary>
+
+Some agent hosts refuse downloads and installers. The macOS Terminal command
+above is the reliable route. This prompt remains for hosts that permit it.
+
+Standalone copy: [prompts/install-cli.txt](prompts/install-cli.txt).
 
 ```text
 Quick install our team's unofficial, read-only Zapier CLI from
@@ -609,9 +612,9 @@ installer-added PATH entry if desired.
 ## Troubleshooting
 
 - Release download fails: confirm GitHub is reachable and the requested
-  release tag exists. For this private repository, sign into GitHub CLI with
-  an account that has access; a browser login alone does not authenticate the
-  installer.
+  release tag exists. If this repository is made private, sign into GitHub CLI
+  with an account that has access; a browser login alone does not authenticate
+  the installer.
 - The command is missing after install: use the absolute binary path printed by
   the installer and report the PATH problem as an installer bug.
 - Claude or Codex cannot find the MCP server: register the absolute

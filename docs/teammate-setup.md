@@ -6,7 +6,8 @@ Both reuse the same saved Zapier connection under your OS user.
 
 | Where you want to use it | Copy this prompt | Where to paste it |
 | --- | --- | --- |
-| Claude Code or Codex | [Install CLI](../prompts/install-cli.txt) | Claude Code or Codex running on your computer |
+| macOS Claude Code or Codex | [macOS quick start](../README.md#macos-quick-start) | Terminal |
+| Agent-assisted CLI setup | [Install CLI](../prompts/install-cli.txt) | An agent host that permits installations |
 | Claude Desktop Cowork, repository install | [Install Cowork from repository](../prompts/install-cowork-repository.txt) | Claude Code or Codex running on your Mac or Windows computer |
 | Claude Desktop Cowork, ZIP upload | [Install Cowork from ZIP](../prompts/install-cowork-zip.txt) | Claude Code or Codex running on your Mac or Windows computer |
 

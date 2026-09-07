@@ -18,15 +18,26 @@ installers = "\n".join(
 )
 
 match = re.search(
-    r"## Give this to Claude or Codex\s+.*?```text\s*(.*?)\s*```",
+    r"Optional agent-assisted installation.*?```text\s*(.*?)\s*```",
     readme,
     flags=re.DOTALL,
 )
 if not match:
-    raise SystemExit("README is missing the copyable agent-install prompt")
+    raise SystemExit("README is missing the optional agent-install prompt")
 prompt = match.group(1)
 if prompt.strip() != prompt_file.strip():
     raise SystemExit("README copyable prompt differs from prompts/install-cli.txt")
+
+for required in (
+    "## macOS quick start",
+    "Run this yourself in Terminal",
+    "git clone https://github.com/VAS-99-99/zapier-cli.git && cd zapier-cli",
+    "./install.sh --agent claude",
+    "export PATH=\"$HOME/.local/bin:$PATH\"",
+    "zapier-pp-cli auth browser",
+):
+    if required not in readme:
+        raise SystemExit(f"README is missing macOS manual setup: {required!r}")
 
 # Prompt wrapping is presentation; check required guidance independent of lines.
 prompt = " ".join(prompt.split())
