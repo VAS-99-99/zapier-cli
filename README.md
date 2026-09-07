@@ -22,6 +22,7 @@ On Windows x64, install Git if needed, then run these commands yourself in
 PowerShell, one at a time. Stop if a command fails.
 
 ```powershell
+cd $env:USERPROFILE
 git clone https://github.com/VAS-99-99/zapier-cli.git
 cd zapier-cli
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
@@ -36,6 +37,9 @@ start with the installer command. Complete the browser login and wait for
 For Claude Code, add `-Agent Claude` to the installer command; for Codex, add
 `-Agent Codex`. The selected agent's command must already be installed.
 Restart the agent after installation to load its skill.
+
+Plain installation does not install a skill or register an MCP connection.
+For both Windows paths, follow [Claude Code or Cowork setup](docs/windows-setup.md).
 
 For Claude Desktop Cowork, follow the ZIP upload steps below and choose
 `zapier-cowork_windows_x86_64.zip`.
@@ -57,7 +61,7 @@ account ID before enabling it.
 
 ## Cowork installation
 
-1. Open the [latest release](https://github.com/VAS-99-99/zapier-cli/releases/latest).
+1. Open [Releases](https://github.com/VAS-99-99/zapier-cli/releases) and choose the newest release, including release candidates.
 2. Download the matching ZIP and leave it zipped:
 
    | Computer | ZIP |

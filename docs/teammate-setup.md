@@ -6,7 +6,8 @@ Both reuse the same saved Zapier connection under your OS user.
 
 | Where you want to use it | Instructions | Where to use them |
 | --- | --- | --- |
-| macOS Claude Code or Codex | [macOS quick start](../README.md#macos-quick-start) | Terminal |
+| Windows Claude Code or Cowork | [Windows setup](windows-setup.md) | PowerShell, then your chosen app |
+| macOS Claude Code or Codex | [macOS installation](../README.md#macos-installation) | Terminal |
 | Claude Desktop Cowork | [Upload the Cowork ZIP](#upload-the-cowork-zip) | Claude Desktop chat side |
 
 Run the manual Terminal commands in the main README yourself. Normal
@@ -24,7 +25,7 @@ installation needs no Go, Node.js, npm, Python, or source build.
 
 ## Upload the Cowork ZIP
 
-The install prompt prints the exact verified ZIP path. In Claude Desktop's
+Download the matching Cowork ZIP from [Releases](https://github.com/VAS-99-99/zapier-cli/releases), including release candidates. In Claude Desktop's
 **chat side**, click **Customize → Plugins → Add → Upload a plugin**. Select
 the ZIP itself—do not unzip it or choose its folder. `Add marketplace` is for
 repository sources and has no ZIP uploader.
