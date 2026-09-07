@@ -1,0 +1,42 @@
+name: Build patched Windows browser helper
+on:
+  push:
+    branches: [fix/windows-browser-stderr]
+    paths:
+      - '.github/workflows/browser-helper.yml'
+      - 'scripts/browser-helper/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: vercel-labs/agent-browser
+          ref: eb05921bad874cd2a1b4fa5d1149f1ed26576cae
+          path: upstream
+          persist-credentials: false
+      - name: Apply Windows pipe fix
+        run: python scripts/browser-helper/patch_windows_stderr.py upstream
+      - name: Build pinned helper
+        working-directory: upstream/cli
+        run: cargo build --locked --release
+      - name: Package helper and provenance
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory output | Out-Null
+          Copy-Item upstream/cli/target/release/agent-browser.exe output/agent-browser-win32-x64.exe
+          Copy-Item upstream/LICENSE output/LICENSE-agent-browser
+          Copy-Item scripts/browser-helper/patch_windows_stderr.py output/
+          'vercel-labs/agent-browser commit eb05921bad874cd2a1b4fa5d1149f1ed26576cae (v0.36.0), plus patch_windows_stderr.py. Dashboard assets are not included; this build is for the private sign-in helper.' | Set-Content output/UPSTREAM.txt
+          (Get-FileHash output/agent-browser-win32-x64.exe -Algorithm SHA256).Hash.ToLower() + '  agent-browser-win32-x64.exe' | Set-Content output/SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: windows-browser-helper
+          path: output/
