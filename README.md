@@ -16,9 +16,33 @@ zapier-pp-cli auth browser
 The last command opens Zapier in your browser. Complete login and wait for the
 `Connected to Zapier` message.
 
+## Windows installation
+
+On Windows x64, install Git if needed, then run these commands yourself in
+PowerShell, one at a time. Stop if a command fails.
+
+```powershell
+git clone https://github.com/VAS-99-99/zapier-cli.git
+cd zapier-cli
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+$env:Path = "$env:LOCALAPPDATA\Microsoft\WindowsApps;$env:Path"
+zapier-pp-cli auth browser
+```
+
+If you already cloned this repository, open that folder in PowerShell and
+start with the installer command. Complete the browser login and wait for
+`Connected to Zapier`. Both the CLI and MCP executable are installed.
+
+For Claude Code, add `-Agent Claude` to the installer command; for Codex, add
+`-Agent Codex`. The selected agent's command must already be installed.
+Restart the agent after installation to load its skill.
+
+For Claude Desktop Cowork, follow the ZIP upload steps below and choose
+`zapier-cowork_windows_x86_64.zip`.
+
 ## Switch Zapier accounts
 
-Run this yourself in Terminal:
+Run this yourself in Terminal on Mac or PowerShell on Windows:
 
 ```bash
 zapier-pp-cli auth logout
