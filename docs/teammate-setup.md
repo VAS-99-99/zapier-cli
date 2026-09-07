@@ -1,72 +1,33 @@
 # Set up Zapier for a teammate
 
-Choose the agent you will use. The original terminal plugin and the Cowork
-plugin are separate installations of this unofficial, read-only project.
+The original terminal plugin and the Cowork plugin are separate installations
+of this unofficial, read-only project.
 Both reuse the same saved Zapier connection under your OS user.
 
-| Where you want to use it | Copy this prompt | Where to paste it |
+| Where you want to use it | Instructions | Where to use them |
 | --- | --- | --- |
 | macOS Claude Code or Codex | [macOS quick start](../README.md#macos-quick-start) | Terminal |
-| Agent-assisted CLI setup | [Install CLI](../prompts/install-cli.txt) | An agent host that permits installations |
-| Claude Desktop Cowork, repository install | [Install Cowork from repository](../prompts/install-cowork-repository.txt) | Claude Code or Codex running on your Mac or Windows computer |
-| Claude Desktop Cowork, ZIP upload | [Install Cowork from ZIP](../prompts/install-cowork-zip.txt) | Claude Code or Codex running on your Mac or Windows computer |
+| Claude Desktop Cowork | [Upload the Cowork ZIP](#upload-the-cowork-zip) | Claude Desktop chat side |
 
-Open the prompt file, copy its full contents, and paste it into the host agent.
-The agent downloads a checksummed prebuilt release and prepares the setup.
-It preserves an existing clone and your saved connection. Normal installation
-needs no Go, Node.js, npm, Python, or source build.
-
-For private repository access, your GitHub account must have access and GitHub
-CLI must be signed in. Being signed in to GitHub in a browser is not enough.
-If the selected release lacks Cowork ZIPs, the agent must stop and identify the
-missing assets for the maintainer. A locally built package is not evidence that
-the release download is available to teammates.
+Run the manual Terminal commands in the main README yourself. Normal
+installation needs no Go, Node.js, npm, Python, or source build.
 
 ## Steps you complete yourself
 
-1. Run `zapier-pp-cli auth browser` in your own host terminal only if the agent
-   reports no valid saved connection. Complete the visible Zapier login, then
-   tell the agent `connected`.
+1. Run `zapier-pp-cli auth browser` in your own host terminal. Complete the
+   visible Zapier login and wait for the `Connected to Zapier` message.
 2. Confirm the exact account returned by the session check. Authentication and
    account confirmation are separate steps.
 3. For the original plugin, start a fresh Claude Code or Codex chat to load the
-   installed skill. For Cowork, install through the repository or ZIP route
-   below, approve its local MCP server, then start a fresh local task.
-
-The host agent can prepare the installation, but it cannot complete your login
-or approve the account on your behalf. Cowork's Linux shell cannot install a
-Mac or Windows host binary.
-
-## Add Cowork from the repository
-
-Use the repository prompt above for the app's supported marketplace flow. The
-project remains unofficial and is not an Anthropic-published integration.
-This route uses the normal installed CLI and MCP executable, so the host agent
-installs the prebuilt release first. Keep the default install location.
-
-In Claude Desktop, open `Customize > Plugins`, choose `Add marketplace`, then
-`Add from a repository`, and enter:
-
-```text
-https://github.com/VAS-99-99/zapier-cli.git
-```
-
-Install `zapier-cowork-macos` on Mac or `zapier-cowork-windows` on Windows,
-enable it, and approve its local MCP server. The Mac entry covers both Apple
-Silicon and Intel because the CLI installer selects the native executable.
-
-The marketplace files must be published to GitHub before a teammate can use
-this route. The prompt checks that condition rather than assuming local files
-are published. Private repository access in the desktop app is a separate
-check from authenticated GitHub CLI access. If the app cannot fetch the
-repository, use the ZIP route below.
+   installed skill. For Cowork, upload the ZIP below, approve its local MCP
+   server, then start a fresh local task.
 
 ## Upload the Cowork ZIP
 
-The install prompt prints the exact verified ZIP path. In Claude Desktop,
-open `Customize` in the left sidebar, then use the Plugins upload flow. Menu
-labels may vary by version. `Add marketplace` is for repository sources and
-has no ZIP uploader.
+The install prompt prints the exact verified ZIP path. In Claude Desktop's
+**chat side**, click **Customize → Plugins → Add → Upload a plugin**. Select
+the ZIP itself—do not unzip it or choose its folder. `Add marketplace` is for
+repository sources and has no ZIP uploader.
 
 | Computer | Upload file |
 | --- | --- |
@@ -80,7 +41,7 @@ MCP server when the app asks.
 
 ## Test a fresh Cowork task
 
-Copy this after installing the plugin by either route:
+Copy this after installing the plugin:
 
 ```text
 Test the installed Zapier Cowork plugin using its Zapier skill and local MCP tools.
