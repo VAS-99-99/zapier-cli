@@ -464,11 +464,11 @@ func TestAuthBrowserVerifyModeDoesNotInstallOrLaunch(t *testing.T) {
 	}
 }
 
-func TestAgentBrowserReleasePinsOfficialAssets(t *testing.T) {
+func TestAgentBrowserReleasePinsVerifiedAssets(t *testing.T) {
 	tests := []struct {
 		goos, goarch, filename, sha string
 	}{
-		{"windows", "amd64", "agent-browser-win32-x64.exe", "412ff72737a109e93f5304b0ff76c988fb6f1f451d0fc7e010577922bcc20ff3"},
+		{"windows", "amd64", "agent-browser-win32-x64.exe", "3d26b5541213d7d7ecce5908e4908990d51ca55fb524ef0af12ae3ac9f7f4a66"},
 		{"darwin", "arm64", "agent-browser-darwin-arm64", "b2106ab39db0838e7b1772f7f26f760518de56d09053150c56f9dddf15af997d"},
 		{"linux", "amd64", "agent-browser-linux-x64", "56d15181e51e00213f907fcf39707cfc76bfa804ff20f5a9373661c73f96de5e"},
 	}
@@ -543,6 +543,23 @@ func TestInstallPinnedAgentBrowserRejectsHashMismatchWithoutReplacingFile(t *tes
 	got, readErr := os.ReadFile(destination)
 	if readErr != nil || string(got) != "existing" {
 		t.Fatalf("existing tool changed after rejected download: %q, %v", got, readErr)
+	}
+}
+
+func TestInstallPinnedAgentBrowserUsesPatchedReleaseSource(t *testing.T) {
+	payload := []byte("patched browser helper")
+	sum := sha256.Sum256(payload)
+	release := agentBrowserRelease{Filename: "helper.exe", SHA256: hex.EncodeToString(sum[:]), BaseURL: "https://github.com/VAS-99-99/zapier-cli/releases/download/browser-helper-test"}
+	previousClient := agentBrowserHTTPClient
+	t.Cleanup(func() { agentBrowserHTTPClient = previousClient })
+	agentBrowserHTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() != release.BaseURL+"/helper.exe" {
+			t.Fatalf("download URL = %s", request.URL)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(payload)), Header: make(http.Header)}, nil
+	})}
+	if err := installPinnedAgentBrowser(context.Background(), filepath.Join(t.TempDir(), "helper.exe"), release); err != nil {
+		t.Fatal(err)
 	}
 }
 

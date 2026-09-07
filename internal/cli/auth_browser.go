@@ -70,6 +70,7 @@ var (
 type agentBrowserRelease struct {
 	Filename string
 	SHA256   string
+	BaseURL  string
 }
 
 type agentBrowserCommandResult struct {
@@ -212,7 +213,13 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 			pageErr := ensureAgentBrowserLoginPage(pageCtx, binaryPath, browserConfigPath, sessionName, retryBlank)
 			cancelPage()
 			if pageErr != nil {
-				return authErr(pageErr)
+				launchStatus := "succeeded"
+				if errors.Is(openErr, context.DeadlineExceeded) {
+					launchStatus = "timed out"
+				} else if openErr != nil {
+					launchStatus = "failed"
+				}
+				return authErr(fmt.Errorf("%w (initial navigation: %s)", pageErr, launchStatus))
 			}
 
 			fmt.Fprintln(cmd.ErrOrStderr(), "Sign in to Zapier in the new browser window. Waiting for sign-in to finish...")
@@ -287,7 +294,7 @@ func agentBrowserReleaseFor(goos, goarch string) (agentBrowserRelease, bool) {
 		"darwin/amd64":  {Filename: "agent-browser-darwin-x64", SHA256: "45d9ac061a7d72e61eaff905326e2e19365f4dadb12142ea2f2d76d84689c708"},
 		"darwin/arm64":  {Filename: "agent-browser-darwin-arm64", SHA256: "b2106ab39db0838e7b1772f7f26f760518de56d09053150c56f9dddf15af997d"},
 		"linux/amd64":   {Filename: "agent-browser-linux-x64", SHA256: "56d15181e51e00213f907fcf39707cfc76bfa804ff20f5a9373661c73f96de5e"},
-		"windows/amd64": {Filename: "agent-browser-win32-x64.exe", SHA256: "412ff72737a109e93f5304b0ff76c988fb6f1f451d0fc7e010577922bcc20ff3"},
+		"windows/amd64": {Filename: "agent-browser-win32-x64.exe", SHA256: "3d26b5541213d7d7ecce5908e4908990d51ca55fb524ef0af12ae3ac9f7f4a66", BaseURL: "https://github.com/VAS-99-99/zapier-cli/releases/download/v0.1.0-rc.7"},
 	}
 	release, ok := assets[goos+"/"+goarch]
 	return release, ok
@@ -431,7 +438,11 @@ func ensurePinnedAgentBrowser(ctx context.Context, allowInstall bool) (string, b
 }
 
 func installPinnedAgentBrowser(ctx context.Context, destination string, release agentBrowserRelease) error {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, agentBrowserReleaseBaseURL+"/"+release.Filename, nil)
+	baseURL := release.BaseURL
+	if baseURL == "" {
+		baseURL = agentBrowserReleaseBaseURL
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/"+release.Filename, nil)
 	if err != nil {
 		return errors.New("building the agent-browser download request failed")
 	}
@@ -809,14 +820,42 @@ func requireAgentBrowserWindow(ctx context.Context, binaryPath, configPath, sess
 	result, err := runAgentBrowserCommand(probeCtx, binaryPath, "--config", configPath, "--namespace", sessionName, "--session", sessionName, "session", "info", "--json")
 	var data struct {
 		Active  bool `json:"active"`
-		Runtime struct {
+		Runtime *struct {
 			BrowserLaunched bool `json:"browserLaunched"`
 			PageCount       int  `json:"pageCount"`
 		} `json:"runtime"`
 	}
-	if err != nil || result.Truncated || decodeAgentBrowserData(result.Stdout, &data) != nil ||
-		!data.Active || !data.Runtime.BrowserLaunched || data.Runtime.PageCount < 1 {
-		return errAgentBrowserWindowLost
+	// Report fixed categories only: helper output can contain session data.
+	reason := ""
+	confirmedLost := false
+	switch {
+	case probeCtx.Err() != nil:
+		reason = "status command timed out or was canceled"
+	case err != nil:
+		reason = "status command failed"
+	case result.Truncated:
+		reason = "status response exceeded output limit"
+	case decodeAgentBrowserData(result.Stdout, &data) != nil:
+		reason = "invalid status response"
+	case !data.Active:
+		reason = "session inactive"
+		confirmedLost = true
+	case data.Runtime == nil:
+		reason = "session exists but browser runtime did not respond"
+	case !data.Runtime.BrowserLaunched:
+		reason = "browser not launched"
+		confirmedLost = true
+	case data.Runtime.PageCount < 1:
+		reason = "no open pages"
+		confirmedLost = true
+	}
+	if reason != "" {
+		if confirmedLost {
+			return fmt.Errorf("%w (browser check: %s)", errAgentBrowserWindowLost, reason)
+		}
+		// An unanswered probe is not evidence of closure. The login loop may
+		// retry session info within its deadline, without relaunching a browser.
+		return fmt.Errorf("browser status unavailable (browser check: %s)", reason)
 	}
 	return nil
 }

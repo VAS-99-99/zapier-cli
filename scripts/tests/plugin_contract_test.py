@@ -10,15 +10,18 @@ PLUGIN = ROOT / "plugins/zapier-read-only"
 
 
 class PluginContract(unittest.TestCase):
-    def test_readme_contains_copyable_cowork_and_schedule_prompts(self):
+    def test_readme_documents_manual_cowork_setup(self):
         readme = (ROOT / "README.md").read_text()
-        for name in ("prompts/install-cowork-zip.txt", "prompts/install-cowork-repository.txt",
-                     "prompts/scheduled-check.txt"):
-            self.assertIn((ROOT / name).read_text().strip(), readme)
+        for expected in (
+            "zapier-cowork_darwin_arm64.zip",
+            "Customize → Plugins → Add → Upload a plugin",
+            "Do not use **Add marketplace**",
+        ):
+            self.assertIn(expected, readme)
+        self.assertNotIn("```text", readme)
 
-    def test_update_prompt_matches_readme_and_preserves_connection(self):
+    def test_update_prompt_preserves_connection(self):
         prompt = (ROOT / 'prompts/update-cli.txt').read_text().strip()
-        self.assertIn(prompt, (ROOT / 'README.md').read_text())
         prompt = " ".join(prompt.split())
         for expected in ('--agent claude', '--agent codex', '-Agent Claude',
                          '-Agent Codex', 'Preserve existing credentials',

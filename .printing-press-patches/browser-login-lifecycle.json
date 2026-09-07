@@ -10,6 +10,7 @@
     "internal/cli/auth_browser.go",
     "internal/cli/auth_browser_test.go",
     "internal/cli/auth_browser_lifecycle_test.go",
+    "internal/cli/auth_browser_status_test.go",
     "README.md",
     "SKILL.md"
   ],
@@ -18,7 +19,9 @@
     "requireAgentBrowserWindow(",
     "TestAuthBrowserNavigationFailureDoesNotInstallOrReopen",
     "TestAuthBrowserSSORedirectDoesNotRestartNavigation",
-    "TestAuthBrowserLostWindowNeverPollsOrNavigates"
+    "TestAuthBrowserLostWindowNeverPollsOrNavigates",
+    "TestBrowserStatusExplainsFailureWithoutLeakingHelperOutput",
+    "TestAuthBrowserStatusTimeoutRecoversWithoutReopening"
   ],
-  "validated_outcome": "Synthetic browser tests cover timeout recovery, missing-browser-only installation, uninterrupted SSO, lost-window fail-stop behavior, and separate connected/account-confirmation output. Real user login remains a manual acceptance check. The pinned helper has no atomic no-relaunch read, so a browser close between a successful session probe and its next read remains a helper-level race."
+  "validated_outcome": "Synthetic browser tests cover timeout recovery, missing-browser-only installation, uninterrupted SSO, confirmed lost-window fail-stop behavior, and separate connected/account-confirmation output. Unanswered status probes remain unknown and are retried within the login deadline, without navigation or cookie reads until status recovers. Fixed error categories distinguish transport failures from confirmed closure without leaking helper output. Real user login remains a manual acceptance check. The pinned helper has no atomic no-relaunch read, so a browser close between a successful session probe and its next read remains a helper-level race."
 }

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "id": "windows-browser-stderr",
+  "applied_at": "2026-09-07",
+  "base_run_id": "20260903-213259-ecc098e3",
+  "base_printing_press_version": "4.31.6",
+  "summary": "Pin a repaired Windows browser helper whose daemon warning output cannot panic after its launcher exits.",
+  "reason": "The pinned upstream agent-browser Windows launcher drops a piped stderr reader after startup. Later iframe warnings panic with exit code 101 and subsequent reads may reopen Chrome. The downstream patch changes that Windows daemon sink to NUL, keeps upstream source and dependencies pinned, and distributes the corrected helper with SHA-256 verification. This belongs in the downstream browser integration, not generated Zapier API code.",
+  "files": ["internal/cli/auth_browser.go", "internal/cli/auth_browser_test.go", "internal/cli/auth_browser_windows_test.go", "scripts/browser-helper/patch_windows_stderr.py", ".github/workflows/browser-helper.yml", ".github/workflows/release.yml", "docs/windows-browser-diagnosis.md"],
+  "call_sites": ["agentBrowserReleaseFor(", "TestAgentBrowserWindowsWarningKeepsBrowserAlive", "TestInstallPinnedAgentBrowserUsesPatchedReleaseSource"],
+  "validated_outcome": "The native Windows blank-page regression deliberately triggers a harmless daemon warning. It must fail with the original helper and pass with the patched helper. It neither authenticates nor reads cookies. Release publication requires this native gate in addition to existing platform checks; a real user sign-in remains a separate acceptance check."
+}

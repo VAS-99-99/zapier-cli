@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: release-${{ github.event.inputs.tag || github.ref_name }}
@@ -63,6 +64,23 @@ jobs:
       - name: Exercise installer under Windows PowerShell 5.1
         shell: powershell
         run: .\scripts\tests\windows_production_test.ps1
+
+      - name: Stage verified Windows helper
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/browser-helper/download-verified.sh helper-dist
+
+      - name: Verify Windows daemon survives a browser warning
+        shell: powershell
+        env:
+          ZAPIER_TEST_NATIVE_BROWSER: "1"
+          ZAPIER_TEST_BROWSER_INSTALL: "1"
+        run: |
+          $tools = Join-Path $env:APPDATA 'zapier-pp-cli/browser-tools'
+          New-Item -ItemType Directory -Force $tools | Out-Null
+          Copy-Item helper-dist/agent-browser-win32-x64.exe (Join-Path $tools 'agent-browser.exe')
+          go test ./internal/cli -run '^TestAgentBrowserWindowsWarningKeepsBrowserAlive$' -count=1 -v -timeout 2m
 
   release:
     name: Build, verify, and publish
@@ -133,6 +151,11 @@ jobs:
       - name: Package local Cowork plugins from verified binaries
         run: python3 scripts/package-cowork.py --release-dir dist --tag "${{ steps.release.outputs.tag }}" --output-dir dist
 
+      - name: Include verified Windows helper
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/browser-helper/download-verified.sh helper-dist
+
       - name: Publish private GitHub Release
         shell: bash
         env:
@@ -150,6 +173,7 @@ jobs:
             dist/zapier-cowork_darwin_x86_64.zip
             dist/zapier-cowork_windows_x86_64.zip
             dist/COWORK_SHA256SUMS
+            helper-dist/agent-browser-win32-x64.exe
           )
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "release $tag already exists; refusing to replace published binaries or checksums" >&2
