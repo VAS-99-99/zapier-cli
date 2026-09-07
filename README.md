@@ -16,6 +16,21 @@ zapier-pp-cli auth browser
 The last command opens Zapier in your browser. Complete login and wait for the
 `Connected to Zapier` message.
 
+## Switch Zapier accounts
+
+Run this yourself in Terminal:
+
+```bash
+zapier-pp-cli auth logout
+zapier-pp-cli auth browser
+zapier-pp-cli session --agent --no-learn
+```
+
+If the browser opens the previous Zapier account, sign out of Zapier there and
+sign in to the intended account. Cowork uses the same saved login, so start a
+new Cowork task afterward. Update any scheduled task with the new email and
+account ID before enabling it.
+
 ## Cowork installation
 
 1. Open the [latest release](https://github.com/VAS-99-99/zapier-cli/releases/latest).
