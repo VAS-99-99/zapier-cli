@@ -11,11 +11,16 @@
     "internal/cli/auth_browser_test.go",
     "internal/cli/auth_browser_lifecycle_test.go",
     "internal/cli/auth_browser_status_test.go",
+    "internal/cli/auth_browser_close.go",
+    "internal/cli/auth_browser_close_test.go",
+    "internal/cli/auth_browser_windows_test.go",
     "README.md",
     "SKILL.md"
   ],
   "call_sites": [
     "agentBrowserOpenResult(",
+    "closeAgentBrowser(",
+    "TestCloseAgentBrowserCannotRequestLaunch",
     "requireAgentBrowserWindow(",
     "TestAuthBrowserNavigationFailureDoesNotInstallOrReopen",
     "TestAuthBrowserSSORedirectDoesNotRestartNavigation",

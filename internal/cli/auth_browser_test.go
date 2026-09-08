@@ -251,8 +251,8 @@ func TestAuthBrowserUsesPrivateAgentBrowserSessionAndNeverPrintsCookies(t *testi
 	if containsArg(closeCall.args, "--all") {
 		t.Fatalf("auth flow attempted to close all browser sessions: %v", closeCall.args)
 	}
-	if !hasArgSequence(closeCall.args, "--config", browserConfigPath) {
-		t.Fatalf("close command did not use the locked auth config: %v", closeCall.args)
+	if commandArgumentValue(closeCall.args, "--config") == browserConfigPath {
+		t.Fatalf("close command reused launch settings: %v", closeCall.args)
 	}
 	if !hasArgSequence(closeCall.args, "--namespace", "zapier-pp-auth-test") {
 		t.Fatalf("close command did not use the dedicated namespace: %v", closeCall.args)

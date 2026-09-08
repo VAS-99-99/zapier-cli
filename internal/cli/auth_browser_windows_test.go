@@ -30,14 +30,19 @@ func TestAgentBrowserWindowsWarningKeepsBrowserAlive(t *testing.T) {
 	}
 	session := makeAgentBrowserSessionName()
 	args := []string{"--config", config, "--namespace", session, "--session", session}
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), agentBrowserLaunchTimeout)
 	defer cancel()
 	defer func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cleanupCancel()
-		_, _ = execAgentBrowserCommand(cleanupCtx, helper, append(args, "close", "--json")...)
+		if err := closeAgentBrowser(context.Background(), helper, session); err != nil {
+			t.Errorf("browser close failed: %v", err)
+		}
 	}()
-	if err := execAgentBrowserOpen(ctx, helper, append(args, "--profile", filepath.Join(root, "profile"), "--headed", "open", "about:blank", "--json")...); err != nil {
+	page := "about:blank"
+	if os.Getenv("ZAPIER_TEST_PUBLIC_LOGIN") == "1" {
+		// A new disposable profile; no authentication or cookie reads.
+		page = zapierLoginURL
+	}
+	if err := execAgentBrowserOpen(ctx, helper, append(args, "--profile", filepath.Join(root, "profile"), "--headed", "open", page, "--json")...); err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < 3; i++ {

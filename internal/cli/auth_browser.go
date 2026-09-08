@@ -36,13 +36,16 @@ const (
 	agentBrowserMaxCookieHeaderBytes  = 64 << 10
 	agentBrowserInstallTimeout        = 5 * time.Minute
 	agentBrowserCommandTimeout        = 30 * time.Second
-	browserConnectTimeout             = 5 * time.Minute
-	browserSessionVerifyTimeout       = 5 * time.Second
-	browserSessionVerifyURL           = "https://zapier.com/api/v4/session"
-	browserSessionMaxResponseBytes    = 1 << 20
-	agentBrowserSessionPrefix         = "zp"
-	agentBrowserManagedDirectory      = "browser-tools"
-	agentBrowserPersistentProfile     = "browser-profile"
+	// The pinned helper can make three 30-second Chrome startup attempts,
+	// followed by CDP setup and navigation. Reads retain their shorter timeout.
+	agentBrowserLaunchTimeout      = 150 * time.Second
+	browserConnectTimeout          = 5 * time.Minute
+	browserSessionVerifyTimeout    = 5 * time.Second
+	browserSessionVerifyURL        = "https://zapier.com/api/v4/session"
+	browserSessionMaxResponseBytes = 1 << 20
+	agentBrowserSessionPrefix      = "zp"
+	agentBrowserManagedDirectory   = "browser-tools"
+	agentBrowserPersistentProfile  = "browser-profile"
 )
 
 var zapierAPIPaths = []string{
@@ -154,11 +157,7 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 				if !sessionTouched {
 					return
 				}
-				closeCtx, cancel := context.WithTimeout(context.WithoutCancel(cmd.Context()), 10*time.Second)
-				defer cancel()
-				result, err := runAgentBrowserCommand(closeCtx, binaryPath, "--config", browserConfigPath, "--namespace", namespaceName, "--session", sessionName, "close", "--json")
-				var data json.RawMessage
-				if err != nil || result.Truncated || decodeAgentBrowserData(result.Stdout, &data) != nil {
+				if err := closeAgentBrowser(cmd.Context(), binaryPath, sessionName); err != nil {
 					fmt.Fprintln(cmd.ErrOrStderr(), "warning: could not close the private sign-in browser; close its window manually before running auth browser again")
 				}
 			}()
@@ -177,7 +176,7 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 				)
 			}
 
-			openCtx, cancelOpen := context.WithTimeout(cmd.Context(), agentBrowserCommandTimeout)
+			openCtx, cancelOpen := context.WithTimeout(cmd.Context(), agentBrowserLaunchTimeout)
 			openErr := openBrowser(openCtx)
 			cancelOpen()
 			browserInstalled := false
@@ -195,7 +194,7 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 				}
 				browserInstalled = true
 
-				openCtx, cancelOpen = context.WithTimeout(cmd.Context(), agentBrowserCommandTimeout)
+				openCtx, cancelOpen = context.WithTimeout(cmd.Context(), agentBrowserLaunchTimeout)
 				openErr = openBrowser(openCtx)
 				cancelOpen()
 				openFailed = openErr != nil
@@ -238,11 +237,7 @@ func newAuthBrowserCmd(flags *rootFlags) *cobra.Command {
 			if err != nil {
 				return configErr(err)
 			}
-			closeCtx, cancelClose := context.WithTimeout(cmd.Context(), 10*time.Second)
-			closeResult, closeErr := runAgentBrowserCommand(closeCtx, binaryPath, "--config", browserConfigPath, "--namespace", namespaceName, "--session", sessionName, "close", "--json")
-			cancelClose()
-			var closeData json.RawMessage
-			if closeErr != nil || closeResult.Truncated || decodeAgentBrowserData(closeResult.Stdout, &closeData) != nil {
+			if err := closeAgentBrowser(cmd.Context(), binaryPath, sessionName); err != nil {
 				return authErr(errors.New("the private sign-in browser could not be closed safely; close the window and run auth browser again"))
 			}
 			sessionTouched = false
