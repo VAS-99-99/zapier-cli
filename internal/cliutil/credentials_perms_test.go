@@ -207,8 +207,8 @@ func TestLoadCredentials_MissingFileIsAbsentNotRefused(t *testing.T) {
 	}
 }
 
-// TestSaveCredentialsVerifiesWrittenFile rejects a broad inherited ACE before
-// replacement bytes are written, leaving the prior credential untouched.
+// TestSaveCredentialsVerifiesWrittenFile creates private replacement files even
+// when their parent grants inherited read access to other users.
 func TestSaveCredentialsVerifiesWrittenFile(t *testing.T) {
 	isolateCredsHome(t)
 	dataDir, err := DataDir()
@@ -231,15 +231,18 @@ func TestSaveCredentialsVerifiesWrittenFile(t *testing.T) {
 			t.Skipf("icacls inherited grant failed; skipping environment-sensitive test: %v", err)
 		}
 		err = SaveCredentials(&Credentials{AccessToken: credsSampleReadPermsToken})
-		if err == nil || !strings.Contains(err.Error(), "validating temporary private file permissions") {
-			t.Fatalf("SaveCredentials() error = %v, want pre-write permission refusal", err)
+		if err != nil {
+			t.Fatalf("SaveCredentials() must create a protected file: %v", err)
+		}
+		if err := VerifyCredsPerms(path); err != nil {
+			t.Fatalf("saved credential inherited unsafe permissions: %v", err)
 		}
 		data, readErr := os.ReadFile(path)
 		if readErr != nil {
-			t.Fatalf("read preserved credentials after permission refusal: %v", readErr)
+			t.Fatalf("read protected replacement credentials: %v", readErr)
 		}
-		if !strings.Contains(string(data), oldToken) || strings.Contains(string(data), credsSampleReadPermsToken) {
-			t.Fatalf("credentials were replaced or exposed new token: %q", data)
+		if strings.Contains(string(data), oldToken) || !strings.Contains(string(data), credsSampleReadPermsToken) {
+			t.Fatal("private replacement was not saved")
 		}
 		matches, globErr := filepath.Glob(filepath.Join(dataDir, "."+credentialsFileName+".*.tmp"))
 		if globErr != nil {

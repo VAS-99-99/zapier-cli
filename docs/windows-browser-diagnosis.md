@@ -91,3 +91,21 @@ On the Asus, the corrected shutdown passed two blank-page runs (19.44 and
 19.66 seconds) and the public login-page run (30.88 seconds), including profile
 removal. The full Go suite and vet passed. User-owned sign-in after this change
 still needs an acceptance check; these tests deliberately do not authenticate.
+
+## Credential save refused by Windows ACL (2026-09-08)
+
+The subsequent user sign-in reached credential persistence and failed with
+`token file DACL grants access to a non-owner principal`. On the Asus, that
+principal resolved to `CodexSandboxUsers`, which had inherited read access on
+the credential directory. No credential was saved. Pressing Enter after the
+command returns to the PowerShell prompt does not resume it.
+
+The generated private-file writer used `chmod`, which does not remove inherited
+Windows ACL grants. Windows file creation now supplies a protected, owner-only
+DACL at creation, before any private data is written. The existing validator
+still runs before the write. Parent permissions and sandbox configuration are
+unchanged. A native regression uses synthetic credentials under a parent with
+an inherited non-owner read grant; it failed before this change and passed on
+the Asus afterwards. The complete Windows credential-utility suite, the full
+local Go suite, and vet also passed. No real credential was read or written by
+these tests; the next personal sign-in verifies the complete flow.

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "id": "windows-private-file-creation",
+  "applied_at": "2026-09-08",
+  "base_run_id": "20260903-213259-ecc098e3",
+  "base_printing_press_version": "4.31.6",
+  "summary": "Create Windows private files with a protected owner-only DACL instead of inheriting parent permissions.",
+  "reason": "The shared generated writer uses chmod, which does not establish a Windows DACL. Parent grants such as CodexSandboxUsers cause the pre-write validator to reject otherwise successful browser logins. This shared writer defect should be upstreamed to Printing Press; the downstream guard records the required Windows behavior until regeneration includes it.",
+  "files": ["internal/cliutil/paths.go", "internal/cliutil/private_temp_windows.go", "internal/cliutil/private_temp_unix.go", "internal/cliutil/credentials_perms_test.go"],
+  "call_sites": ["createPrivateTempFile(", "windows.CreateFile(", "TestSaveCredentialsVerifiesWrittenFile"],
+  "validated_outcome": "Synthetic Windows credentials must save beneath a parent with inherited non-owner read grants while the resulting file passes the unchanged owner/DACL validator. A protected DACL is supplied at creation before private bytes are written; CREATE_NEW rejects collisions. POSIX temp creation and the fail-closed pre-write verifier remain intact. Real authentication is user-owned."
+}

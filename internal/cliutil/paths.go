@@ -137,7 +137,7 @@ func atomicWritePrivateFileWithVerifier(path string, data []byte, fileMode, dirM
 	if err := os.MkdirAll(dir, dirMode); err != nil {
 		return fmt.Errorf("creating private file dir: %w", err)
 	}
-	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*.tmp")
+	tmp, err := createPrivateTempFile(dir, filepath.Base(path))
 	if err != nil {
 		return fmt.Errorf("creating temporary private file: %w", err)
 	}
