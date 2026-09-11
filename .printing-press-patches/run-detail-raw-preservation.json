@@ -1,0 +1,25 @@
+{
+    "schema_version": 2,
+    "id": "run-detail-raw-preservation",
+    "applied_at": "2026-09-10",
+    "base_run_id": "20260903-213259-ecc098e3",
+    "base_printing_press_version": "4.31.6",
+    "summary": "Preserve raw run-detail step data in machine output: nullable step status, unknown fields, empty objects/arrays, and precision-sensitive JSON numbers survive value-exact; compact projection no longer reshapes commands that declare a primary-payload record.",
+    "reason": "The zapier-run-monitor collector stores returned step data as JSONB with value equality. Fixed-struct decoding plus the generic compact map round-trip corrupted large integers, dropped empty maps and unknown fields, and rejected the legitimate null status of unexecuted branch steps, making run detail unusable as durable evidence.",
+    "files": [
+        "internal/cli/runs.go",
+        "internal/cli/runs_test.go",
+        "internal/cli/helpers.go"
+    ],
+    "call_sites": [
+        "optionalReportingString(",
+        "documentedRunDetailFields",
+        "func (s runStep) MarshalJSON()",
+        "func (s *runStep) UnmarshalJSON(",
+        "Raw json.RawMessage",
+        "printOutputWithFlagsMeta(",
+        "compactObjectArrayValue("
+    ],
+    "validated_outcome": "Focused runs/reporting/account tests (18), full go test ./..., and go vet ./... passed on a disposable copy at base 2b1b1e7925abe0c0dc096246428babdada53eff1; git apply --check re-verified against a fresh pristine copy on 2026-09-11. Main raw-precision probe (main-cli-metadata-acceptance.json) on the corrected binary sha256 98dc2ada6f492b87997b0097e53bcb302b5699c95deec29dc76c27b5112e5e8b: all 9 behavior assertions true, including unknown_run, normalized_time_authoritative, normalized_zap_authoritative, nested_zap_metadata. Downstream integration: tests/integration/test_cli_contract_real_binary.py 23 tests OK against that binary. The local proposed patch is not a published release; the installed VPS CLI remains unpatched rc.9.",
+    "base_spec_checksum": "sha256:02277232d909d2ec992cb2d0ea12bf8900cf9352cefac00c7ae550f9ee65cabe"
+}

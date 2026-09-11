@@ -40,14 +40,66 @@ type runSummary struct {
 }
 
 type runStep struct {
-	Title  string         `json:"title"`
-	App    string         `json:"app"`
-	Status string         `json:"status"`
-	Input  map[string]any `json:"input,omitempty"`
-	Output map[string]any `json:"output,omitempty"`
+	Title  string          `json:"title"`
+	App    string          `json:"app"`
+	Status string          `json:"status"`
+	Input  json.RawMessage `json:"input,omitempty"`
+	Output json.RawMessage `json:"output,omitempty"`
 	Error  *struct {
 		Title string `json:"title"`
 	} `json:"error,omitempty"`
+	// StatusNull records a legitimately absent status: an unexecuted branch
+	// step returns no status, which is distinct from an invented value.
+	StatusNull bool `json:"-"`
+	// Raw holds the step exactly as the API returned it. Machine output
+	// re-emits these bytes so unknown fields, empty maps, and numbers above
+	// 2^53 survive without a Go float round-trip.
+	Raw json.RawMessage `json:"-"`
+}
+
+// MarshalJSON re-emits the step exactly as the API returned it, with the
+// validated correction that a null status stays null rather than an empty
+// string. Validation has already guaranteed identity fields.
+func (s runStep) MarshalJSON() ([]byte, error) {
+	if len(s.Raw) > 0 {
+		return s.Raw, nil
+	}
+	// Fallback for steps constructed in tests without raw bytes.
+	type alias struct {
+		Title  string          `json:"title"`
+		App    string          `json:"app"`
+		Status *string         `json:"status"`
+		Input  json.RawMessage `json:"input,omitempty"`
+		Output json.RawMessage `json:"output,omitempty"`
+		Error  *struct {
+			Title string `json:"title"`
+		} `json:"error,omitempty"`
+	}
+	a := alias{
+		Title:  s.Title,
+		App:    s.App,
+		Input:  s.Input,
+		Output: s.Output,
+		Error:  s.Error,
+	}
+	if !s.StatusNull {
+		status := s.Status
+		a.Status = &status
+	}
+	return json.Marshal(a)
+}
+
+// UnmarshalJSON keeps plain struct decoding: defining MarshalJSON alone
+// makes encoding/json treat the type as a single-value JSON type and reject
+// objects during parse.
+func (s *runStep) UnmarshalJSON(data []byte) error {
+	type plain runStep
+	type noMethods struct {
+		*plain
+	}
+	var value noMethods
+	value.plain = (*plain)(s)
+	return json.Unmarshal(data, &value)
 }
 
 type runDetail struct {
@@ -57,6 +109,50 @@ type runDetail struct {
 	ZapID     string    `json:"zap_id"`
 	ZapTitle  string    `json:"zap_title"`
 	Steps     []runStep `json:"steps"`
+	// Extra holds unknown zapRun fields exactly as the API returned them.
+	// Machine output re-emits them verbatim so unknown fields and numbers
+	// above 2^53 survive without a Go float round-trip.
+	Extra map[string]json.RawMessage `json:"-"`
+}
+
+// MarshalJSON emits every unknown zapRun field verbatim (extras first),
+// then the normalized known fields (id, status, start_time, zap_id,
+// zap_title, steps) LAST so they win any key collision. The Extra values
+// and the raw zap object are json.RawMessage, so the merge never routes a
+// value through float64.
+func (d runDetail) MarshalJSON() ([]byte, error) {
+	type knownFields struct {
+		ID        string    `json:"id"`
+		Status    string    `json:"status"`
+		StartTime string    `json:"start_time"`
+		ZapID     string    `json:"zap_id"`
+		ZapTitle  string    `json:"zap_title"`
+		Steps     []runStep `json:"steps"`
+	}
+	known, err := json.Marshal(knownFields{
+		ID:        d.ID,
+		Status:    d.Status,
+		StartTime: d.StartTime,
+		ZapID:     d.ZapID,
+		ZapTitle:  d.ZapTitle,
+		Steps:     d.Steps,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(d.Extra) == 0 {
+		return known, nil
+	}
+	// Extras first: any unknown or raw-source key colliding with a reserved
+	// normalized name is overwritten below by the known fields.
+	object := make(map[string]json.RawMessage, len(d.Extra)+6)
+	for key, raw := range d.Extra {
+		object[key] = raw
+	}
+	if err := json.Unmarshal(known, &object); err != nil {
+		return nil, err
+	}
+	return json.Marshal(object)
 }
 
 const (
@@ -112,6 +208,19 @@ func parseReportingRunDetail(raw json.RawMessage) (detail runDetail, found bool,
 	if detail.Status, err = requiredReportingString(runObject, "status"); err != nil {
 		return runDetail{}, false, err
 	}
+	// Capture unknown zapRun fields before normalization strips them, so
+	// machine output can re-emit them byte-exact. Raw source fields
+	// (startTime, zap) are kept too: unknown fields nested inside them, and
+	// their original numeric precision, must survive. MarshalJSON merges
+	// extras first and normalized fields last, so the reserved normalized
+	// output names (id, status, start_time, zap_id, zap_title, steps) win
+	// any collision with an unknown or raw-alias key.
+	for key, raw := range runObject {
+		if detail.Extra == nil {
+			detail.Extra = make(map[string]json.RawMessage)
+		}
+		detail.Extra[key] = append(json.RawMessage(nil), raw...)
+	}
 	if startTime, ok := runObject["startTime"]; ok && !isNullJSON(startTime) {
 		if err := json.Unmarshal(startTime, &detail.StartTime); err != nil {
 			return runDetail{}, false, fmt.Errorf("reporting response startTime is invalid")
@@ -137,13 +246,19 @@ func parseReportingRunDetail(raw json.RawMessage) (detail runDetail, found bool,
 		if _, err := requiredReportingString(stepObject, "title"); err != nil {
 			return runDetail{}, false, fmt.Errorf("reporting response step %d: %w", i, err)
 		}
-		if _, err := requiredReportingString(stepObject, "status"); err != nil {
+		if err := optionalReportingString(stepObject, "status"); err != nil {
 			return runDetail{}, false, fmt.Errorf("reporting response step %d: %w", i, err)
 		}
 		var step runStep
+		if statusRaw, ok := stepObject["status"]; ok && isNullJSON(statusRaw) {
+			step.StatusNull = true
+		}
 		if err := json.Unmarshal(stepValue, &step); err != nil {
 			return runDetail{}, false, fmt.Errorf("reporting response step %d is invalid: %w", i, err)
 		}
+		// Keep the original step bytes so machine output re-emits unknown
+		// fields, empty maps, and precise numbers exactly as returned.
+		step.Raw = append(json.RawMessage(nil), stepValue...)
 		detail.Steps = append(detail.Steps, step)
 	}
 	if zap, ok := runObject["zap"]; ok && !isNullJSON(zap) {
@@ -169,6 +284,26 @@ func requiredReportingString(object map[string]json.RawMessage, field string) (s
 		return "", fmt.Errorf("reporting response has invalid %s", field)
 	}
 	return value, nil
+}
+
+// optionalReportingString accepts a legitimate nullable string field: an
+// explicit null is valid (unexecuted branch steps return no status), while
+// any present non-null value must decode to a non-empty string. A missing
+// key remains structural malformation: the GraphQL query always requests
+// status, so an absent key is not a shape the API returns.
+func optionalReportingString(object map[string]json.RawMessage, field string) error {
+	raw, ok := object[field]
+	if !ok {
+		return fmt.Errorf("reporting response is missing %s", field)
+	}
+	if isNullJSON(raw) {
+		return nil
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil || strings.TrimSpace(value) == "" {
+		return fmt.Errorf("reporting response has invalid %s", field)
+	}
+	return nil
 }
 
 // parseReportingRunsPage is deliberately strict: GraphQL's nullable response
@@ -418,6 +553,23 @@ func newRunsListCmd(flags *rootFlags) *cobra.Command {
 	return c
 }
 
+// documentedRunDetailFields declares the complete step record for the
+// compact allowlist: run detail is the primary payload for `runs get`, so
+// compact/agent output must keep every documented key verbatim instead of
+// applying the generic high-gravity list allowlist (which would strip the
+// raw step data machine consumers depend on).
+var documentedRunDetailFields = map[string]bool{
+	"id": true, "status": true, "start_time": true,
+	"zap_id": true, "zap_title": true,
+	"steps":     true,
+	"title":     true,
+	"app":       true,
+	"input":     true,
+	"output":    true,
+	"error":     true,
+	"startTime": true,
+}
+
 // pp:data-source live
 func newRunsGetCmd(flags *rootFlags) *cobra.Command {
 	c := &cobra.Command{
@@ -458,7 +610,11 @@ func newRunsGetCmd(flags *rootFlags) *cobra.Command {
 				return apiErr(fmt.Errorf("parsing run detail: reporting response returned run %s for requested run %s", detail.ID, runID))
 			}
 			if !wantsHumanTable(cmd.OutOrStdout(), flags) {
-				return printLiveValue(cmd.OutOrStdout(), detail, flags)
+				raw, err := json.Marshal(detail)
+				if err != nil {
+					return err
+				}
+				return printOutputWithFlagsMeta(cmd.OutOrStdout(), raw, flags, map[string]any{"source": "live"}, documentedRunDetailFields)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Run %s (%s) — %s\n", detail.ID, detail.Status, detail.ZapTitle)
 			for i, s := range detail.Steps {

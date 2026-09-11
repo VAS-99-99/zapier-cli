@@ -1597,11 +1597,15 @@ func printOutputWithFlagsMeta(w io.Writer, data json.RawMessage, flags *rootFlag
 	// is the user's authoritative request, so the high-gravity allow-list
 	// must not strip those fields out before --select can pick them. When
 	// only --compact is set (e.g., --agent without --select), the allow-list
-	// still runs.
+	// still runs. A command that declares documented fields is declaring a
+	// primary-payload record (e.g. run detail steps): that record is the
+	// reason the command exists, so compact projection must not reshape it —
+	// the generic map round-trip would round large integers through float64
+	// and drop keys outside the allowlist.
 	if flags.selectFields != "" {
 		data = filterFields(data, flags.selectFields)
-	} else if flags.compact {
-		data = compactFields(data, documentedFields...)
+	} else if flags.compact && len(documentedFields) == 0 {
+		data = compactFields(data)
 	}
 	if flags.agent && flags.asJSON && !flags.csv && !flags.plain && !flags.quiet {
 		wrapped, err := wrapAgentOutput(data, agentMeta)
@@ -1857,6 +1861,26 @@ func compactObjectArrayValue(v any, documentedFields ...map[string]bool) (any, b
 	var compacted any
 	if err := json.Unmarshal(compactedRaw, &compacted); err != nil {
 		return nil, false
+	}
+	// Preserve raw item bytes when projection kept every key of an item: a
+	// wholesale-kept record must not pass through map[string]any, which
+	// would round large integers through float64 and corrupt machine-read
+	// output (run steps carry provider ids above 2^53).
+	if compactedList, ok := compacted.([]any); ok && len(compactedList) == len(rawItems) {
+		var keptItems []map[string]any
+		if err := json.Unmarshal(compactedRaw, &keptItems); err == nil && len(keptItems) == len(rawItems) {
+			result := make([]any, len(rawItems))
+			for i, kept := range keptItems {
+				if len(kept) == len(items[i]) {
+					// Every key survived filtering: keep original bytes so
+					// numbers/empty shapes stay exact.
+					result[i] = rawItems[i]
+				} else {
+					result[i] = compactedList[i]
+				}
+			}
+			return result, true
+		}
 	}
 	return compacted, true
 }
